@@ -46,6 +46,12 @@ def save_file(file):
 	file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
 
+import requests
+def test_post():
+	url = 'http://192.168.17.230:8080/upload_log'
+	files = {'file': open('app_usage_2014_02_18_5.log', 'rb')}
+	r = requests.post(url, files=files)
+	
 if __name__ == '__main__':
 	# 0.0.0.0
 	# 140.112.42.22
