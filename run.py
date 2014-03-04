@@ -55,4 +55,4 @@ def test_post():
 if __name__ == '__main__':
 	# 0.0.0.0
 	# 140.112.42.22
-	app.run(host='192.168.17.230', port=8080)
+	app.run(host='140.112.42.22', port=8080)
