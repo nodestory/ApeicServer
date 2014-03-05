@@ -6,9 +6,8 @@ class ProductionConfig(Config):
 	pass
 
 class DevelopmentConfig(Config):
-	DATABASE = '/cygdrive/c/Users/Linzy/aleic.db'
 	DEBUG = True
-	UPLOAD_FOLDER = 'logs'
+	SQLALCHEMY_DATABASE_URI = 'mysql://linzy:yatingcj6@localhost/apeic'
 
 class TestingConfig(Config):
     TESTING = True

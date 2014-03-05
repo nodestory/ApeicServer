@@ -1,17 +1,21 @@
 import sqlite3
-from flask import Flask, g, request
+from flask import Flask, request
+from flask.ext.sqlalchemy import SQLAlchemy
+from werkzeug.contrib.fixers import ProxyFix
 
 app = Flask(__name__)
 app.config.from_object('config.DevelopmentConfig')
+app.wsgi_app = ProxyFix(app.wsgi_app)    
 
+db = SQLAlchemy(app)
+    
 @app.before_request
 def before_request():
-    g.db = sqlite3.connect(app.config['DATABASE'])
+	pass
 
 @app.after_request
 def after_request(response):
-    g.db.close()
-    return response
+	return response
 
 @app.route('/')
 def hello_world():
@@ -19,40 +23,43 @@ def hello_world():
 
 @app.route('/<uuid>/upload_log', methods=['POST'])
 def upload_file(uuid):
-	file = request.files['file']
+	create_table_cmd = 'CREATE TABLE IF NOT EXISTS %s_app_usage_logs(\
+		id INT NOT NULL AUTO_INCREMENT, \
+		datetime DATETIME NOT NULL, \
+		latitude DOUBLE, \
+		longitude DOUBLE, \
+		activity VARCHAR(12), \
+		application VARCHAR(96) NOT NULL, \
+		PRIMARY KEY(id));' % uuid
+	db.session.execute(create_table_cmd)
+	file = request.files['log_file']
 	if file:
-		for line in file.stream.readlines():
+		for line in file.stream.readlines()[:3]:
 			values = line.replace('\n', '').split(';;')
-			cmd = 'INSERT INTO app_usage_logs VALUES (null, "%s", "%s", "%s", "%s", "%s", "%s");' % \
-				(uuid, values[0], values[1], values[2], values[4], values[6])
-			g.db.execute(cmd)
-		g.db.commit()
-	return '200'
+			insert_log_cmd = 'INSERT INTO %s_app_usage_logs \
+				(datetime, latitude, longitude, activity, application)\
+				VALUES ("%s", "%s", "%s", "%s", "%s");' % \
+				(uuid, "2014-03-01 16:47:16+0800", "25.042575", "121.566042", "STILL", "tw.edu.ntu.ee.arbor.apeic")
+			db.session.execute(insert_log_cmd)
+		db.session.commit()
+	return 'Success!'
 
 @app.route('/upload_log', methods=['POST'])
 def test_uploading_file():
 	for att in request.files:
 		print att
-	# file = request.files['file']
-	# if file:
-	# 	save_file(file)
-	return '200'
+	return 'Success!'
 
+@app.route('/read_logs', methods=['GET'])
+def test_reading_logs():
+	logs = db.session.execute('select distinct application from app_usage_logs')
+	return ' '.join(log[0] for log in logs)
 
 import os
 from werkzeug.utils import secure_filename
 def save_file(file):
 	filename = secure_filename(file.filename)
 	file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-
-
-import requests
-def test_post():
-	url = 'http://192.168.17.230:8080/upload_log'
-	files = {'file': open('app_usage_2014_02_18_5.log', 'rb')}
-	r = requests.post(url, files=files)
 	
 if __name__ == '__main__':
-	# 0.0.0.0
-	# 140.112.42.22
-	app.run(host='140.112.42.22', port=8080)
+	app.run()
