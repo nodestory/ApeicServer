@@ -21,26 +21,34 @@ def after_request(response):
 def hello_world():
     return 'Hello World!'
 
+
+
 @app.route('/<uuid>/upload_log', methods=['POST'])
 def upload_file(uuid):
+	uuid = uuid.replace('-', '_')
 	create_table_cmd = 'CREATE TABLE IF NOT EXISTS %s_app_usage_logs(\
 		id INT NOT NULL AUTO_INCREMENT, \
 		datetime DATETIME NOT NULL, \
 		latitude DOUBLE, \
 		longitude DOUBLE, \
+		location_acc FLOAT, \
+		speed FLOAT, \
 		activity VARCHAR(12), \
+		activity_conf INT, \
 		application VARCHAR(96) NOT NULL, \
 		PRIMARY KEY(id));' % uuid
 	db.session.execute(create_table_cmd)
 	file = request.files['log_file']
 	if file:
-		for line in file.stream.readlines()[:3]:
-			values = line.replace('\n', '').split(';;')
-			insert_log_cmd = 'INSERT INTO %s_app_usage_logs \
-				(datetime, latitude, longitude, activity, application)\
-				VALUES ("%s", "%s", "%s", "%s", "%s");' % \
-				(uuid, "2014-03-01 16:47:16+0800", "25.042575", "121.566042", "STILL", "tw.edu.ntu.ee.arbor.apeic")
-			db.session.execute(insert_log_cmd)
+		for line in file.stream.readlines()[82:]:
+			values = line.replace('\n', '')
+			try:
+				insert_log_cmd = 'INSERT INTO %s_app_usage_logs \
+					(datetime, latitude, longitude, location_acc, speed, activity, activity_conf, application) \
+					VALUES (%s);' % (uuid, values)
+				db.session.execute(insert_log_cmd)
+			except:
+				print insert_log_cmd
 		db.session.commit()
 	return 'Success!'
 
