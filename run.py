@@ -40,7 +40,7 @@ def upload_file(uuid):
 	db.session.execute(create_table_cmd)
 	file = request.files['log_file']
 	if file:
-		for line in file.stream.readlines()[82:]:
+		for line in file.stream.readlines():
 			values = line.replace('\n', '')
 			try:
 				insert_log_cmd = 'INSERT INTO %s_app_usage_logs \
