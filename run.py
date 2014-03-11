@@ -35,6 +35,11 @@ def upload_file(uuid):
 		speed FLOAT, \
 		activity VARCHAR(12), \
 		activity_conf INT, \
+		illumination FLOAT, \
+		mobile_connection BOOLEAN, \
+		wifi_connection BOOLEAN, \
+		wifi_ap_num INT, \
+		battery_power FLOAT, \
 		application VARCHAR(96) NOT NULL, \
 		PRIMARY KEY(id));' % uuid
 	db.session.execute(create_table_cmd)
@@ -44,7 +49,10 @@ def upload_file(uuid):
 			values = line.replace('\n', '')
 			try:
 				insert_log_cmd = 'INSERT INTO %s_app_usage_logs \
-					(datetime, latitude, longitude, location_acc, speed, activity, activity_conf, application) \
+					(datetime, latitude, longitude, location_acc, speed, \
+						activity, activity_conf, \
+						illumination, mobile_connection, wifi_connection, wifi_ap_num, \
+						battery_power, application) \
 					VALUES (%s);' % (uuid, values)
 				db.session.execute(insert_log_cmd)
 			except:
