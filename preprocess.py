@@ -11,7 +11,12 @@ for table in tables:
 
     sessions = []
     cursor.execute('SELECT id, application FROM %s' % table)
-    records = cursor.fetchall()
+    apps = [x[0] for x in cursor.fetchall()]
+
+    #這裡要有個matrix記個別的分數
+    M = []
+    for app in apps:
+        M.append((app, []))
 
     cursor.execute('SELECT distinct application FROM %s' % table)
     records = cursor.fetchall()
@@ -39,3 +44,14 @@ for table in tables:
         print '\n'.join(new_session)
         print 
         print '\n'.join([app for id, app in session])
+
+        for app in new_session:
+            index = new_session.index(app)
+            for a in new_session[index]:
+                #為每一個加分
+
+# 取每天
+# 取每個session
+# 先算CRF
+
+# 算interactional context

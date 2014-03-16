@@ -1,4 +1,4 @@
-import sqlite3
+import time
 from flask import Flask, request
 from flask.ext.sqlalchemy import SQLAlchemy
 from werkzeug.contrib.fixers import ProxyFix
@@ -20,8 +20,6 @@ def after_request(response):
 @app.route('/')
 def hello_world():
     return 'Hello World!'
-
-
 
 @app.route('/<uuid>/upload_log', methods=['POST'])
 def upload_file(uuid):
@@ -60,16 +58,57 @@ def upload_file(uuid):
 		db.session.commit()
 	return 'Success!'
 
-@app.route('/upload_log', methods=['POST'])
-def test_uploading_file():
+@app.route('/<uuid>/register_app', methods=['GET'])
+def register_app(uuid):
+	uuid = uuid.replace('-', '_')
+	app = request.args['app']
+	
+	try:
+		create_table_cmd = 'CREATE TABLE IF NOT EXISTS %s_installed_apps(\
+			id INT NOT NULL AUTO_INCREMENT, \
+			application VARCHAR(96) NOT NULL, \
+			start_date DATETIME, \
+			end_date DATETIME, \
+			PRIMARY KEY(id), \
+			UNIQUE KEY(application));' % uuid
+		db.session.execute(create_table_cmd)
+	except:
+		abort(404)
+		print create_table_cmd
+
+	try:
+		insert_app_cmd = 'INSERT INTO %s_installed_apps \
+			(application, start_date) VALUES ("%s", "%s");' % \
+			(uuid, app, time.strftime('%Y-%m-%d %H:%M:%S'))
+		db.session.execute(insert_app_cmd)
+		db.session.commit()
+		return request.args['app'] + " is registered!"
+	except:
+		print insert_app_cmd
+		abort(404)
+
+@app.route('/<uuid>/unregister_app', methods=['GET'])
+def unregister_app(uuid):
+	uuid = uuid.replace('-', '_')
+	app = request.args['app']
+
+	try:
+		update_cmd = 'UPDATE %s_installed_apps SET end_date = "%s" \
+			WHERE application = "%s"' % \
+			(uuid, time.strftime('%Y-%m-%d %H:%M:%S'), app)
+		db.session.execute(update_cmd)
+		db.session.commit()
+		return request.args['app'] + " is unregistered!"
+	except:
+		print update_cmd
+		return request.args['app'] + "unregistration failed."
+
+
+@app.route('/test_post', methods=['POST'])
+def test_post():
 	for att in request.files:
 		print att
 	return 'Success!'
-
-@app.route('/read_logs', methods=['GET'])
-def test_reading_logs():
-	logs = db.session.execute('select distinct application from app_usage_logs')
-	return ' '.join(log[0] for log in logs)
 
 import os
 from werkzeug.utils import secure_filename
