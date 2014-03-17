@@ -149,6 +149,9 @@ def compute_causality(sessions):
             print p, installed_apps[app].predecessors[p]
         print 
 
+def compute_idf(sessions):
+    pass
+
 def main():
     # 68231230_3e25_4d31_bbd1_f3d2f12031de_app_usage_logs
     # c3547530_668d_41f4_9c41_49d2164aa0de_app_usage_logs
