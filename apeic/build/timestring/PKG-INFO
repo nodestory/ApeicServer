@@ -1,0 +1,20 @@
+Metadata-Version: 1.1
+Name: timestring
+Version: 1.6.0
+Summary: Human expressed time to Dates and Ranges
+Home-page: http://github.com/stevepeak/timestring
+Author: @stevepeak
+Author-email: steve@stevepeak.net
+License: http://www.apache.org/licenses/LICENSE-2.0
+Description: Converting strings of into representable time via Date and Range objects.
+         Plus features to compare and adjust Dates and Ranges.
+Keywords: date time range datetime datestring
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3.2
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: Implementation :: PyPy
