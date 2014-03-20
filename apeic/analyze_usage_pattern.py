@@ -73,36 +73,10 @@ def main():
 
 	for user in users:
 		print colored(user, attrs=['blink'])
-
-		db_helper = ApeicDBHelper()
-		sessions = db_helper.get_sessions(user)
-		for session in sessions:
-			
-			if len(session) > 1:
-				print '==='
-				for x in session:
-					print x['application']
-				print
-
-				apps = [x['application'] for x in session]
-				for app in list(OrderedDict.fromkeys(apps)):
-					indices = [i for i, x in enumerate(apps) if x == app]
-
-					indices.append(len(session))
-					for i in xrange(len(indices) - 1):
-						if indices[i] + 1 < indices[i+1]:
-							print app, '->', 
-							for j in xrange(indices[i] + 1, indices[i+1]):
-								print session[j]['application']
-					
-				print 
-				
-		# print_app_events(user)
-
+		print_app_events(user)
 		# print_app_repeatability(user)
-		
 		print
-		break
+		# break
 
 if __name__ == '__main__':
 	main()
