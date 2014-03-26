@@ -65,12 +65,19 @@ class ApeicDBHelper(object):
         )
         cls.execute(cmd)
 
+    def get_users(self):
+        cmd = 'SHOW TABLES LIKE "%_installed_apps"'
+        rows = self.execute(cmd)
+        return map(lambda x: x[0].replace('_installed_apps', ''), rows)
+
     IGNORED_APPLICATIONS = ['null', 'com.htc.launcher', 'com.tul.aviate']
     def get_sessions(self, user):
         logs = self.select('%s_app_usage_logs' % user, 
             where_items=and_(map(lambda x: {'application !=': x}, ApeicDBHelper.IGNORED_APPLICATIONS)))
         segments = []
 
+        if len(logs) == 0:
+            return[]
         log = logs.pop(0)
         segments.append([])
         segments[-1].append(log)
