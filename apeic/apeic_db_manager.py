@@ -70,6 +70,16 @@ class ApeicDBHelper(object):
         rows = self.execute(cmd)
         return map(lambda x: x[0].replace('_installed_apps', ''), rows)
 
+    def get_logs(self, user):
+        rows = self.select('%s_app_usage_logs' % user, 
+            where_items=and_(map(lambda x: {'application !=': x}, ApeicDBHelper.IGNORED_APPLICATIONS)))
+        logs = [rows[0]]
+        for i in xrange(1, len(rows)):
+            if rows[i]['application'] != logs[-1]['application']:
+                logs.append(rows[i])
+        return logs
+
+    # IGNORED_APPLICATIONS = ['null', 'com.htc.launcher', 'com.tul.aviate', 'com.android.settings', 'android']
     IGNORED_APPLICATIONS = ['null', 'com.htc.launcher', 'com.tul.aviate']
     def get_sessions(self, user):
         logs = self.select('%s_app_usage_logs' % user, 
@@ -98,16 +108,18 @@ class ApeicDBHelper(object):
                 if log['application'] != session[-1]['application']:
                     session.append(log)
             sessions.append(session)
-
+        sessions = map(lambda x: x[1:] if x[0] in ['com.htc.launcher', 'com.tul.aviate'] else x, sessions)
         return sessions
 
 def main():
     db_helper = ApeicDBHelper()
+    print '\n'.join(db_helper.get_users())
     sessions = db_helper.get_sessions('5f83a438d9145bb2')
     for session in sessions:
         for x in session:
-            print x
-        print 
+            pass
+            #print x
+        #print 
 
 if __name__ == '__main__':
     main()

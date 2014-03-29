@@ -64,12 +64,9 @@ def compute_repeatability(user):
 	return sorted(results.iteritems(), key=operator.itemgetter(1), reverse=True)
 
 def main():
-	users = ['5f83a438d9145bb2', \
-         '7fab9970aff53ef4', \
-         '11d1ef9f845ec10e', \
-         '475f258ecc566658', \
-         '15002028b1f352fe', \
-         'ff3be9536122e83f']
+	db_helper = ApeicDBHelper()
+	users = db_helper.get_users()
+	print len(users)
 
 	for user in users:
 		print colored(user, attrs=['blink'])
