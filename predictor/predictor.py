@@ -5,6 +5,10 @@ IGNORED_LAUNCHES = [u'com.android.systemui', u'com.htc.launcher', u'android', u'
 
 class Predictor():
 
+	def split(self, data, ratio=0.8):
+		split_index = int(len(data)*ratio)
+		return data[:split_index], data[split_index:]
+
 	@abc.abstractmethod
 	def train(self, training_data):
 	    return

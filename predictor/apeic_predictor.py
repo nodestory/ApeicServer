@@ -1,17 +1,15 @@
+import itertools
+import operator
+from collections import Counter, OrderedDict, defaultdict
+from termcolor import colored
 from predictor import Predictor
-from collections import Counter, defaultdict
+from preprocessor import Preprocessor
+
 import sys
 sys.path.append('/home/linzy/Projects/ApeicServer/apeic')
 from apeic_db_manager import ApeicDBHelper
-from preprocessor import Preprocessor
 
-import itertools
-import logging
-import math
-import operator
-from collections import defaultdict, Counter, OrderedDict
-from termcolor import colored
-
+#TODO: rename class
 class App():
 	def __init__(self, pkg_name):
 		self.name = pkg_name
@@ -19,26 +17,6 @@ class App():
 		self.pred_co_ocrs = defaultdict(int)
 		self.pred_influence = defaultdict(int)
 		self.repeatedness = 0
-
-def compute_relatedness(co_ocrs, p_ocrs, s_ocrs, N, typ=1):
-	N = float(N)
-	co_prob = co_ocrs/N
-	p_prob = p_ocrs/N
-	s_prob = s_ocrs/N
-	if typ == 1:
-		return co_prob/(p_prob*s_prob)
-	elif typ == 2:
-		return math.log(co_prob/(p_prob*s_prob))
-	elif typ == 3:
-		return math.log(co_prob/(p_prob*s_prob))/(-math.log(co_prob))
-	elif typ == 4: #idf
-		return math.log(N/p_ocrs)*math.log(co_prob/(p_prob*s_prob))/(-math.log(co_prob))
-	elif typ == 5:
-		return co_ocrs/float(p_ocrs)
-	elif typ == 6:
-		return math.log(p_ocrs)*co_ocrs/p_ocrs
-	else:
-		pass
 
 class ApeicPredictor(Predictor):
 
@@ -71,6 +49,7 @@ class ApeicPredictor(Predictor):
 			successor = self.used_apps[pkg_name]
 			for p in successor.pred_co_ocrs:
 				predecessor = self.used_apps[p]
+				# TODO: perform experiments with differnect measures
 				successor.pred_influence[p] = successor.pred_co_ocrs[p]/predecessor.ocrs
 
 	def predict(self, session, k=4):
@@ -82,6 +61,7 @@ class ApeicPredictor(Predictor):
 		ranking = defaultdict(int)
 		for pkg_name in self.used_apps:
 			ranking[pkg_name] = self.used_apps[pkg_name].pred_influence[session[-1]['application']]
+			# TODO: take recency into consideration
 			# if pkg_name in map(lambda x: x['application'], session[-4:-1]):
 			# 	ranking[pkg_name] += 1
 			# if pkg_name in map(lambda x: x['application'], session[:-4]):
@@ -107,7 +87,7 @@ def main():
 		
 		print colored(user, attrs=['blink'])
 		
-		training_sessions, testing_sessions = split(sessions, 0.84)
+		training_sessions, testing_sessions = split(sessions, 0.8)
 		
 		predictor = ApeicPredictor()
 		for session in training_sessions:
@@ -126,8 +106,8 @@ def main():
 			predictor.update(session)
 
 		acc = hits/(hits + misses)
-		print acc
 		accuracies.append(acc)
+		print acc
 	print sum(accuracies)/len(accuracies)
 
 

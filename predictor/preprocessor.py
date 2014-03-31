@@ -133,7 +133,7 @@ class Preprocessor():
         	# instance['mobile_connection'] = log['mobile_connection']
         	# instance['wifi_connection'] = log['wifi_connection']
         	# instance['wifi_ap_num'] = log['wifi_ap_num']
-        	# instance['last_used_app'] = logs[i-1]['application']
+        	instance['last_used_app'] = logs[i-1]['application']
         	X.append(instance)
         	y.append(log['application'])
         	i += 1
