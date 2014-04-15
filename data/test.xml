@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<setup>
+    <generate count="500">
+        <attribute name="day" source="day.wgt.csv" />
+        <attribute name="hour" source="hour.wgt.csv" />
+        <!-- <attribute name="stay_point" source="stay_point.wgt.csv" /> -->
+        <attribute name="activity" source="activity.wgt.csv" />
+        <!-- <attribute name="application" source="application.wgt.csv" /> -->
+        <consumer class="FixedWidthEntityExporter">
+            <property name="uri" value="app_usage_logs.flat" />
+            <property name="columns" value="day[2],hour[3],activity[12]" />
+        </consumer>
+    </generate>
+</setup>

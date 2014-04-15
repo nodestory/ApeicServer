@@ -1,0 +1,3 @@
+[u'com.facebook.orca', u'com.android.phone', u'com.android.mms', \
+    u'com.google.android.talk', u'jp.naver.line.android', \
+    u'com.android.htccontacts', u'com.google.android.gm']

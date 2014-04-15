@@ -1,7 +1,5 @@
-# -*- coding: utf-8 -*-I
 import datetime
 import mosql.mysql
-from mosql.util import raw
 from mosql.build import and_, select, update, join, insert, delete
 from sqlalchemy import create_engine
 from sqlalchemy.pool import QueuePool
@@ -70,27 +68,21 @@ class ApeicDBHelper(object):
         rows = self.execute(cmd)
         return map(lambda x: x[0].replace('_installed_apps', ''), rows)
 
-    # def get_logs(self, user):
-    #     rows = self.select('%s_app_usage_logs' % user, 
-    #         where_items=and_(map(lambda x: {'application !=': x}, ApeicDBHelper.IGNORED_APPLICATIONS)))
-    #     logs = [rows[0]]
-    #     for i in xrange(1, len(rows)):
-    #         if rows[i]['application'] != logs[-1]['application']:
-    #             logs.append(rows[i])
-    #     return logs
-
+    IGNORED_APPLICATIONS = [u'null', u'com.android.launcher', u'com.htc.launcher', u'com.tul.aviate']
     def get_logs(self, user):
         rows = self.select('%s_app_usage_logs' % user, 
             where_items=and_(map(lambda x: {'application !=': x}, ApeicDBHelper.IGNORED_APPLICATIONS)))
-        return rows
+        logs = [rows[0]]
+        for i in xrange(1, len(rows)):
+            if rows[i]['application'] != logs[-1]['application']:
+                logs.append(rows[i])
+        return logs
 
-    # IGNORED_APPLICATIONS = ['null', 'com.htc.launcher', 'com.tul.aviate', 'com.android.settings', 'android']
-    IGNORED_APPLICATIONS = ['null', 'com.htc.launcher', 'com.tul.aviate']
     def get_sessions(self, user):
-        logs = self.select('%s_app_usage_logs' % user, 
-            where_items=and_(map(lambda x: {'application !=': x}, ApeicDBHelper.IGNORED_APPLICATIONS)))
+        logs = self.select('%s_app_usage_logs' % user, where_items={'application !=': 'null'})
         segments = []
 
+        # split records into independent segments
         if len(logs) == 0:
             return[]
         log = logs.pop(0)
@@ -102,19 +94,56 @@ class ApeicDBHelper(object):
                 segments.append([])  
             segments[-1].append(log)
 
-        # TODO: merge sessions whose interval is less than on minute
-        # interval = (log[1] - segments[-1][-1][1]).seconds
-        # 0 < interval <= 60
-
-        sessions = []
+        new_segments = []
         for segment in segments:
+            segment = filter(lambda x: x['application'] not in ['android', 'com.android.launcher', \
+                    'com.htc.launcher', 'com.tul.aviate', 'com.thinkyeah.smartlockfree', 'com.htc.android.worldclock'], segment)
+            if len(segment) > 0:
+                new_segments.append(segment)
+
+        # remove duplicate records
+        sessions = []
+        for segment in new_segments:
             session = [segment[0]]
             for log in segment[1:]:
                 if log['application'] != session[-1]['application']:
                     session.append(log)
             sessions.append(session)
-        sessions = map(lambda x: x[1:] if x[0] in ['com.htc.launcher', 'com.tul.aviate'] else x, sessions)
         return sessions
+        # sessions = map(lambda x: x[1:] if x[0] in ['com.htc.launcher', 'com.tul.aviate'] else x, sessions)
+        # return sessions
+        # print len(sessions)
+
+        # filtered_sessions = []
+        # for session in sessions:
+        #     new_session = []
+        #     for log in session:
+        #         if log['application'] not in ['com.android.launcher', \
+        #             'com.htc.launcher', 'com.tul.aviate', 'com.thinkyeah.smartlockfree']:
+        #             new_session.append(log)
+        #     if len(new_session) > 0:
+        #         filtered_sessions.append(new_session)
+
+        # print len(filtered_sessions)
+        # return filtered_sessions
+
+        # merge sessions whose interval is less than on minute
+        # aggregated_sessions = []
+        # session = sessions.pop(0)
+        # aggregated_sessions.append(session)
+        # while sessions:
+        #     session = sessions.pop(0)
+        #     if (session[0]['datetime'] - aggregated_sessions[-1][-1]['datetime']).seconds < 120:
+        #          aggregated_sessions[-1].extend(session)
+        #     else:
+        #         aggregated_sessions.append(session)
+        # return aggregated_sessions
+
+    def get_used_apps(self, user):
+        rows = self.execute('SELECT DISTINCT application from %s_app_usage_logs' % user)
+        apps = map(lambda x: x[0], rows)
+        apps = filter(lambda x: x not in ApeicDBHelper.IGNORED_APPLICATIONS, apps)
+        return apps
 
 def main():
     db_helper = ApeicDBHelper()

@@ -24,20 +24,21 @@ class MFUPredictor(Predictor):
 
 def main():
 	db_helper = ApeicDBHelper()
-	preprocessor = Preprocessor()
+	
 	users = db_helper.get_users()
 
 	results = []
 	for user in users:
 		logs = db_helper.get_logs(user)
-		if len(logs) < 20:
+		if user == 'da832e9ef7b778f9':
 			continue
+		preprocessor = Preprocessor(logs)
 		training_logs, testing_logs = preprocessor.split(logs, 0.8)
 		predictor = MFUPredictor()
 		predictor.train(training_logs)
 
-		hit_rate, mrr = predictor.test(testing_logs, 4)
-		print hit_rate
+		hit_rate, mrr = predictor.test(testing_logs, 1)
+		print hit_rate, mrr
 		results.append((hit_rate, mrr))
 	avg_hit_rate = sum(map(lambda x: x[0], results))/len(results)
 	avg_mrr = sum(map(lambda x: x[1], results))/len(results)

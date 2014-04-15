@@ -2,6 +2,10 @@ import itertools
 from collections import Counter
 from sklearn.feature_extraction import DictVectorizer
 
+import sys
+sys.path.append('/home/linzy/Projects/ApeicServer/apeic')
+from apeic_db_manager import ApeicDBHelper
+
 def some(items, predicate, key=None, func=None):
     if not items:
         return -1
@@ -36,7 +40,34 @@ def get_distance(lng1, lat1, lng2, lat2):
     km = 6367 * c
     return km
 
+from sklearn.cluster import MiniBatchKMeans, KMeans
 class Preprocessor():
+
+    def __init__(self, logs):        
+        self.logs = logs
+
+    def extract_stay_points(self):
+        logs = filter(lambda x: x['activity'] in [u'STILL', u'TILTING', u'UNKNOWN'], self.logs)
+        locations = list(map(lambda x: [x['latitude'], x['longitude']], self.logs))
+        locations = filter(lambda x: x[0] != 0 or x[1] != 0, locations)
+        index = 0
+        e = 100
+        for i in xrange(1, 10):
+            k_means = KMeans(init='k-means++', n_clusters=i, n_init=10)
+            k_means.fit(locations)
+            k_means_cluster_centers = k_means.cluster_centers_
+            error = []
+            for loc in locations:
+                # print loc, k_means_cluster_centers[k_means.predict(loc)[0]]
+                error.append((loc[0]-k_means_cluster_centers[k_means.predict(loc)[0]][0])**2 + \
+                (loc[1]-k_means_cluster_centers[k_means.predict(loc)[0]][1])**2)
+            if sum(error)/len(error) < 0.01:
+                e = sum(error)/len(error)
+                index = i
+                break
+        print i, e
+        # k_means_labels_unique = np.unique(k_means_labels)
+
 
     def aggregate_sessions(self, sessions):
         return list(itertools.chain(*sessions))
@@ -52,6 +83,7 @@ class Preprocessor():
     def get_stay_points(self, logs):
         logs = filter(lambda x: x['activity'] in [u'STILL', u'TILTING', u'UNKNOWN'], logs)
         locations = list(set(map(lambda x: (x['latitude'], x['longitude']), logs)))
+        locations = filter(lambda x: not x[0] == 0 or not x[1] == 0, locations)
         stay_points = []
         for lat, lng in locations:
             index = some(stay_points, lambda x: get_distance(x[1], x[0], lng, lat) < 1)
@@ -64,6 +96,18 @@ class Preprocessor():
         counter = Counter(counts)
         stay_points = filter(lambda x: counter[stay_points.index(x)] > 1, stay_points)
         return stay_points
+
+    def get_stay_point(self, log, stay_points):
+        if log['activity'] in [u'STILL', u'TILTING', u'UNKNOWN']:
+            index = some(stay_points, lambda x: get_distance(x[1], x[0], log['longitude'], log['latitude']) < 1)
+            if index < 0:
+                stay_points.append((log['latitude'], log['longitude']))
+                result = str(len(stay_points) - 1)
+            else:
+                result = str(index)
+        else:
+            result = str(-1)
+        return result
 
     def to_weka(self, user, logs):
         stay_points = self.get_stay_points(logs)
@@ -122,20 +166,34 @@ class Preprocessor():
         	else:
         		instance['stay_point'] = str(-1)
 
-        	# instance['last_stay_point'] = last_stay_point
-        	# if last_stay_point != instance['stay_point']:
-        	# 	last_stay_point = instance['stay_point']
-        	# instance['activity'] = log['activity']
+        	instance['last_stay_point'] = last_stay_point
+        	if last_stay_point != instance['stay_point']:
+        		last_stay_point = instance['stay_point']
+        	instance['activity'] = log['activity']
         	# instance['last_activity'] = last_activity
         	# if last_activity != log['activity']:
         	# 	last_activity = log['activity']
-        	# instance['illumination'] = log['illumination']
-        	# instance['mobile_connection'] = log['mobile_connection']
+        	instance['illumination'] = log['illumination']
+        	instance['mobile_connection'] = log['mobile_connection']
         	# instance['wifi_connection'] = log['wifi_connection']
         	# instance['wifi_ap_num'] = log['wifi_ap_num']
-        	instance['last_used_app'] = logs[i-1]['application']
+        	# instance['last_used_app'] = logs[i-1]['application']
         	X.append(instance)
         	y.append(log['application'])
         	i += 1
         vec = DictVectorizer()
         return vec.fit_transform(X).toarray(), y
+
+
+def main():
+    db_helper = ApeicDBHelper()
+    
+    users = db_helper.get_users()
+    for user in users:
+        logs = db_helper.get_logs(user)
+        preprocessor = Preprocessor(logs)
+        preprocessor.extract_stay_points()
+        # break
+
+if __name__ == '__main__':
+    main()

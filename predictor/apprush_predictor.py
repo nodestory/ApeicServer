@@ -54,7 +54,8 @@ class App():
 	def normalize(self, used_apps):
 		denominator = sum(self.hod.values())
 		for hour in self.hod:
-			self.hod[hour] /= denominator
+			self.hod[hour] = \
+				sum(map(lambda x: self.hod[hour] if hour-x in self.hod else 0, xrange(-1, 2)))/denominator
 
 		denominator = sum(self.dow.values())
 		for day in self.dow:
@@ -108,8 +109,8 @@ class APPRushPredictor(Predictor):
 		ranking = defaultdict(int)
 		for pkg_name in self.used_apps:
 			app = self.used_apps.setdefault(pkg_name, App(pkg_name))
-			ranking[pkg_name] = 0.6*app.crf + 0.6*app.crfd + 0.61*app.hod[hour] + 0.33*app.dow[day] + 0.87*app.seq[last_app]
-			# ranking[pkg_name] = app.seq[last_app]
+			ranking[pkg_name] = 0.6*app.crfd + 0.66*app.hod[hour] + 0.33*app.dow[day] + 0.86*app.seq[last_app]
+			ranking[pkg_name] = app.crf
 			# ranking[pkg_name] = wc*app.crfd + wh*app.hod[hour] + wd*app.dow[day] + ws*app.seq[last_app]
 			
 		results = sorted(ranking.iteritems(), key=operator.itemgetter(1), reverse=True)
@@ -136,10 +137,11 @@ def main():
 
 		hits = 0.0
 		misses = 0.0
+		# testing_logs = training_logs
 		last_log = testing_logs[0]
 		for log in testing_logs[1:]:
 			if log['application'] != last_log['application'] or log['id'] == testing_logs[-1]['id']:
-				candidates = predictor.predict(last_log, log, 8)
+				candidates = predictor.predict(last_log, log, 5)
 
 				if log['application'] in candidates:
 					hits += 1
