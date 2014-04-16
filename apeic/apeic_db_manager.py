@@ -94,16 +94,24 @@ class ApeicDBHelper(object):
                 segments.append([])  
             segments[-1].append(log)
 
-        new_segments = []
-        for segment in segments:
-            segment = filter(lambda x: x['application'] not in ['android', 'com.android.launcher', \
-                    'com.htc.launcher', 'com.tul.aviate', 'com.thinkyeah.smartlockfree', 'com.htc.android.worldclock'], segment)
-            if len(segment) > 0:
-                new_segments.append(segment)
+        # new_segments = []
+        # for segment in segments:
+        #     segment = filter(lambda x: x['application'] not in ['android', 'com.android.launcher', \
+        #             'com.htc.launcher', 'com.sec.android.app.launcher', 'com.tul.aviate', \
+        #             'com.thinkyeah.smartlockfree', 'com.htc.android.worldclock'], segment)
+        #     if len(segment) > 0:
+        #         new_segments.append(segment)
+
+        # new_segments = []
+        # new_segments.append(segments[0])
+        # for i in xrange(1, len(segments)):
+        #     if segments[i][0]['application'] == segments[i-1][-1]['application']:
+        #         new_segments.append(segments[i][1:])
+        # new_segments = filter(lambda x: x, new_segments)
 
         # remove duplicate records
         sessions = []
-        for segment in new_segments:
+        for segment in segments:
             session = [segment[0]]
             for log in segment[1:]:
                 if log['application'] != session[-1]['application']:
@@ -128,16 +136,26 @@ class ApeicDBHelper(object):
         # return filtered_sessions
 
         # merge sessions whose interval is less than on minute
-        # aggregated_sessions = []
-        # session = sessions.pop(0)
-        # aggregated_sessions.append(session)
-        # while sessions:
-        #     session = sessions.pop(0)
-        #     if (session[0]['datetime'] - aggregated_sessions[-1][-1]['datetime']).seconds < 120:
-        #          aggregated_sessions[-1].extend(session)
-        #     else:
-        #         aggregated_sessions.append(session)
+        aggregated_sessions = []
+        session = sessions.pop(0)
+        aggregated_sessions.append(session)
+        while sessions:
+            session = sessions.pop(0)
+            if (session[0]['datetime'] - aggregated_sessions[-1][-1]['datetime']).seconds < 180:
+                 aggregated_sessions[-1].extend(session)
+            else:
+                aggregated_sessions.append(session)
         # return aggregated_sessions
+
+        # remove duplicate records
+        sessions = []
+        for s in aggregated_sessions:
+            session = [s[0]]
+            for log in s[1:]:
+                if log['application'] != session[-1]['application']:
+                    session.append(log)
+            sessions.append(session)
+        return sessions
 
     def get_used_apps(self, user):
         rows = self.execute('SELECT DISTINCT application from %s_app_usage_logs' % user)

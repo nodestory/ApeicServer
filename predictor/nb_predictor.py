@@ -172,15 +172,15 @@ def split(sessions, ratio=0.8):
     start_date = sessions[0][0]['datetime']
     midnight = datetime.time(0)
     start_date = datetime.datetime.combine(start_date.date(), midnight)
-    end_date = start_date + datetime.timedelta(days=7)
+    end_date = start_date + datetime.timedelta(days=21)
 
     split_index = int(len(sessions)*ratio)
-    # for i in xrange(len(sessions)):
-    #     if (sessions[i][0]['datetime'] - end_date).days > 0:
-    #         split_index = i
-    #         break
+    for i in xrange(len(sessions)):
+        if (sessions[i][0]['datetime'] - end_date).days > 0:
+            split_index = i
+            break
     
-    # print split_index, len(sessions) - split_index
+    print split_index, len(sessions) - split_index
     return sessions[:split_index], sessions[split_index:]
 
 def aggregate_sessions(sessions):
@@ -194,9 +194,7 @@ def main():
 
     accuracies = []
     for user in users:
-        # if user == 'da832e9ef7b778f9' or user == '11d1ef9f845ec10e':
-            # continue
-        if user == '475f258ecc566658':
+        if user == '11d1ef9f845ec10e':
             continue
         print colored(user, attrs=['blink'])
 
@@ -209,11 +207,8 @@ def main():
         nb = MultinomialNB()
         predictor = nb.fit(X, y)
 
-        # hits = 0.0
-        # misses = 0.0
         last_used_app = ''
         for session in tesiting_sessions:
-            
             for log in session:
                 # if log['application'] in ['com.android.settings', \
                 #     'com.android.packageinstaller', 'com.htc.android.worldclock', 'com.android.systemui']:
@@ -221,7 +216,7 @@ def main():
                 
                 instance = extractor.transform(last_used_app, log)
                 ranking = sorted(zip(predictor.classes_, predictor.predict_proba(instance)[0]), \
-                    key=operator.itemgetter(1), reverse=True)
+                                    key=operator.itemgetter(1), reverse=True)
                 candidates = map(lambda x: x[0], ranking[:4])
                 if log['application'] in candidates:
                     hits += 1.0

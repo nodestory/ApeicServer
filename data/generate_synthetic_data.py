@@ -4,6 +4,7 @@ import random
 from collections import defaultdict
 from itertools import groupby
 from operator import itemgetter
+from selector import choice, choice_by_distr
 
 import sys
 sys.path.append('/home/linzy/Projects/ApeicServer/apeic')
@@ -22,7 +23,6 @@ def format(log):
     application = log['application']
     return day, hour, activity, application
 
-
 class AppDistr(object):
 
     def __init__(self, ocrs, day_distr, hour_distr, activity_distr):
@@ -34,12 +34,14 @@ class AppDistr(object):
 
 class SessionGenerator():
 
-    def __init__(self, app_num=20, session_num=400):
+    def __init__(self, app_num=15, session_num=400):
         self.app_num = app_num
         self.session_num = session_num
 
         app_distrs = self._get_app_distrs()
         self.app_distrs = random.sample(app_distrs, app_num)
+
+        self.session_len_distr = self._get_session_len_distr()
 
         self.app_causality = self._create_app_causality()
 
@@ -90,11 +92,32 @@ class SessionGenerator():
         for user in users:
             logs.extend(helper.get_logs(user))
 
-            
         logs = map(lambda x: format(x), logs)
         app_traces = sorted(logs, key=itemgetter(-1))
         return app_traces
 
+    def _get_session_len_distr(self):
+        """
+        helper = ApeicDBHelper()
+
+        users = helper.get_users()
+        results = []
+        for user in users:
+            print user
+            sessions = helper.get_sessions(user)
+            # counter = Counter(map(lambda session: len(set(map(lambda x: x['application'], session))), sessions))
+            counter = Counter(map(lambda s: len(s), sessions))
+            results.append(counter)
+            print counter
+        
+        len_dist = reduce(add, (Counter(dict(x)) for x in results))
+        print len_dist
+        return len_dist
+        """
+        # {1: 1302, 2: 577, 3: 216, 4: 121, 5: 34, 6: 20, 7: 8, 8: 7, 9: 4, 12: 1, 16: 1}
+        # {1: 1307, 2: 439, 3: 199, 4: 122, 5: 67, 6: 47, 8: 25, 7: 23, 11: 14, 10: 9, 9: 8, 12: 8, 16: 6, 14: 4, 15: 4, 18: 3, 19: 3, 13: 2, 17: 1, 20: 1, 22: 1, 25: 1, 28: 1, 30: 1, 41: 1}
+        return {1: 1302, 2: 577, 3: 216, 4: 121, 5: 34, 6: 20, 7: 8, 8: 7, 9: 4, 12: 1, 16: 1}
+    
     def _create_app_causality(self):
         causality = {}
         for app in map(lambda x: x[0], self.app_distrs):
@@ -122,7 +145,7 @@ class SessionGenerator():
             env_context = init_context[0][:-1]
             launched_apps = [init_context[0][-1]]
             session.append(init_context[0])
-            for i in xrange(random.choice(range(1, 5))):
+            for i in xrange(choice_by_distr(self.session_len_distr)):
                 application = self._generate_next_app(launched_apps)
                 launched_apps.append(application)
                 log = env_context + (application, )
@@ -138,21 +161,25 @@ class SessionGenerator():
 
         init_contexts = []
         for d, h, a in contexts:
-            candidates = dict(map(lambda x: (x[0], x[1].ocr_porb*x[1].day_distr[d]*x[1].hour_distr[h]*x[1].activity_distr[a]), self.app_distrs))
-            log = (d, h, a, choice(candidates.keys(), candidates.values()))
+            candidates = map(lambda x: (x[0], x[1].ocrs, x[1].day_distr[d]*x[1].hour_distr[h]*x[1].activity_distr[a]), self.app_distrs)
+            results = sorted(candidates, key=itemgetter(2), reverse=True)
+            # print results[:10]
+            # log = (d, h, a, choice(candidates.keys(), candidates.values()))
+            log = (d, h, a, choice(map(lambda x: x[0], results[:10]), map(lambda x: x[1], results[:10])))
             init_contexts.append([log])
         return init_contexts
 
     def _generate_next_app(self, launched_apps):
         candidates = defaultdict(int)
 
-        # for p in launched_apps:
-        #     p = launched_apps[-1]
-        #     for s in self.app_causality:
-        #         candidates[s] += self.app_causality[s].pred_influence[p]
-        p = launched_apps[-1]
-        for s in self.app_causality:
+        for p in launched_apps:
+            for s in self.app_causality:
                 candidates[s] += self.app_causality[s].pred_influence[p]
+        # p = launched_apps[-1]
+        # for s in self.app_causality:
+        #     candidates[s] += self.app_causality[s].pred_influence[p]
+        # for p in launched_apps:
+        #     candidates[p] += 1
         winner = choice(candidates.keys(), candidates.values())
         while winner == p:
             winner = choice(candidates.keys(), candidates.values())
@@ -296,11 +323,21 @@ def test():
     acc = hits/(hits + misses)
     print acc, hits, misses
 
+
+from operator import add
 if __name__ == '__main__':
     test()
-    # helper = ApeicDBHelper()
 
-    # logs = []
-    # users = helper.get_users()
-    # for user in users:
-    #     print len(helper.get_used_apps(user))
+    """
+    helper = ApeicDBHelper()
+
+    users = helper.get_users()
+    for user in users[1:]:
+        # print len(helper.get_used_apps(user))
+        sessions = helper.get_sessions(user)
+        for session in sessions:
+            for log in session:
+                print log['datetime'], log['application']
+            print
+        break
+    """

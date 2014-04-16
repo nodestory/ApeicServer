@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="iso-8859-1"?>
 <setup>
-    <generate count="500">
+    <generate count="300">
         <attribute name="day" source="day.wgt.csv" />
         <attribute name="hour" source="hour.wgt.csv" />
         <!-- <attribute name="stay_point" source="stay_point.wgt.csv" /> -->
