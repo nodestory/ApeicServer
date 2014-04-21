@@ -22,6 +22,7 @@ class ApeicPredictor(Predictor):
 		self.app_instances = {}
 
 	def train(self, sessions):
+		# TODO: refactor by using nb_predictor
 		logs = list(chain(*sessions))
 		X, y = self.feature_extractor.generate_training_instances(logs)
 		nb = MultinomialNB()
@@ -66,7 +67,7 @@ class ApeicPredictor(Predictor):
 				predecessor = self.app_instances[p]
 				successor.pred_influence[p] = successor.pred_co_ocrs[p]/predecessor.ocrs
 
-	def predict(self, terminator, session, k=4):
+	def predict(self, starter, terminator, session, k=4):
 		env_context = session[-1]
 		instance = self.feature_extractor.transform('', env_context)
 		result = dict(zip(self.nb_predictor.classes_, self.nb_predictor.predict_proba(instance)[0]), \
@@ -76,14 +77,20 @@ class ApeicPredictor(Predictor):
 		for pkg_name in self.app_instances:
 			ranking[pkg_name] = result[pkg_name] if pkg_name in result else 0
 		int_context = map(lambda x: x['application'], session[:-1])
+		temp = []
 		for a in int_context:
-			for pkg_name in self.app_instances:
-				ranking[pkg_name] += self.app_instances[pkg_name].pred_influence[a]
+			if a not in self.app_instances:
+				temp.append(a)
+			else:
+				for pkg_name in self.app_instances:
+					ranking[pkg_name] += self.app_instances[pkg_name].pred_influence[a]
 
 		candidates = sorted(ranking, key=ranking.get, reverse=True)
 		if len(int_context) == 0:
 			if terminator not in candidates[:k] and terminator != '':
 				candidates.insert(0, terminator)
+			# if starter not in candidates[:k+1] and starter != '':
+			# 	candidates.insert(0, starter)
 		else:
 			if int_context[-1] in candidates:
 				candidates.remove(int_context[-1])
@@ -92,19 +99,13 @@ class ApeicPredictor(Predictor):
 		"""
 		if len(session) == 0:
 			results = sorted(ei.iteritems(), key=operator.itemgetter(1), reverse=True)
-
-			candidates = map(lambda x: x[0], results[:k])
 			candidates = map(lambda x: x[0], results[2:k+2])
 			if last not in candidates:
 				candidates = map(lambda x: x[0], results[2:k+1]) + [last]
 			return candidates
 
+		launched_apps = list(OrderedDict.fromkeys(map(lambda x: x['application'], session[:-1])))
 		ranking = defaultdict(int)
-		for pkg_name in self.app_instances:
-			ranking[pkg_name] = self.app_instances[pkg_name].pred_influence[session[-1]['application']]
-
-		ranking = defaultdict(int)
-		temp = list(OrderedDict.fromkeys(map(lambda x: x['application'], session[:-1])))
 		for pkg_name in self.app_instances:
 			# ranking[pkg_name] = ei[pkg_name] if pkg_name in ei else 0
 			ranking[pkg_name] = self.app_instances[pkg_name].pred_influence[session[-1]['application']]
@@ -116,10 +117,8 @@ class ApeicPredictor(Predictor):
 			# 	ranking[pkg_name] += 1
 			# if pkg_name in map(lambda x: x['application'], session[:-4]):
 			# 	ranking[pkg_name] -= 1
-			# if pkg_name in temp:
-			# 	# print temp.index(pkg_name), len(temp), temp.index(pkg_name)/float(len(temp))
-				# ranking[pkg_name] += 0.3 - 0.05*(len(temp) - temp.index(pkg_name))
-			# 	# ranking[pkg_name] += 2
+			# if pkg_name in launched_apps:
+				# ranking[pkg_name] += 0.3 - 0.05*(len(launched_apps) - temp.index(pkg_name))
 		"""
 
 def split(sessions, ratio=0.8):
@@ -148,6 +147,7 @@ def main():
 	total_hits = 0.0
 	total_misses = 0.0
 	accuracies = []
+	# users = ['7fab9970aff53ef4']
 	for user in users:
 		if user == '11d1ef9f845ec10e':
 			continue
@@ -155,7 +155,11 @@ def main():
 
 		sessions = db_helper.get_sessions(user)
 		training_sessions, testing_sessions = split(sessions, 0.8)
-		
+		seen_apps = []
+		for s in training_sessions:
+			seen_apps.extend(map(lambda x: x['application'], s))
+		print len(set(seen_apps)), len(sessions)
+		# training_sessions = map(lambda x: [x[0]], training_sessions)
 		predictor = ApeicPredictor()
 		predictor.train(training_sessions)
 
@@ -164,11 +168,18 @@ def main():
 		initial_misses = 0.0
 		unseen_misses = 0.0
 
+		starter = ''
 		terminator = ''
 		for session in testing_sessions:
+			# print '\n'.join(map(lambda x: x['application'], session))
 			for i in xrange(len(session)):
-				candidates = predictor.predict(terminator, session[:i+1], 4)
+				candidates = predictor.predict(starter, terminator, session[:i+1], 4)
 				assert len(candidates) == 4
+
+				# if session[i]['application'] not in candidates:
+				# 	print i, session[i]['application']
+				# 	print candidates
+				# print
 
 				if session[i]['application'] in candidates:
 					total_hits += 1.0
@@ -178,7 +189,9 @@ def main():
 					misses += 1.0
 					if i == 0:
 						initial_misses += 1.0
-					# TODO: calculte unseen misses
+					if session[i]['application'] not in seen_apps:
+						unseen_misses += 1.0
+			starter = session[0]['application']
 			terminator = session[-1]['application']
 
 			# predictor.update(session)
@@ -189,11 +202,12 @@ def main():
 			# nb = MultinomialNB()
 			# nb_predictor = nb.fit(X, y)
 
+		if hits + misses == 0:
+			continue
 		acc = (hits)/(hits + misses)
 		print acc, hits, misses, initial_misses, unseen_misses
 		# break
 	print (total_hits)/(total_hits + total_misses)
-
 
 if __name__ == '__main__':
 	main()

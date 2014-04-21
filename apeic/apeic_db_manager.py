@@ -94,13 +94,13 @@ class ApeicDBHelper(object):
                 segments.append([])  
             segments[-1].append(log)
 
-        # new_segments = []
-        # for segment in segments:
-        #     segment = filter(lambda x: x['application'] not in ['android', 'com.android.launcher', \
-        #             'com.htc.launcher', 'com.sec.android.app.launcher', 'com.tul.aviate', \
-        #             'com.thinkyeah.smartlockfree', 'com.htc.android.worldclock'], segment)
-        #     if len(segment) > 0:
-        #         new_segments.append(segment)
+        new_segments = []
+        for segment in segments:
+            segment = filter(lambda x: x['application'] not in ['android', 'com.android.launcher', \
+                    'com.htc.launcher', 'com.sec.android.app.launcher', 'com.tul.aviate', \
+                    'com.thinkyeah.smartlockfree', 'com.htc.android.worldclock', 'com.android.settings'], segment)
+            if len(segment) > 0:
+                new_segments.append(segment)
 
         # new_segments = []
         # new_segments.append(segments[0])
@@ -111,13 +111,18 @@ class ApeicDBHelper(object):
 
         # remove duplicate records
         sessions = []
-        for segment in segments:
+        for segment in new_segments:
             session = [segment[0]]
             for log in segment[1:]:
                 if log['application'] != session[-1]['application']:
                     session.append(log)
-            sessions.append(session)
+            # session = filter(lambda x: x['application'] not in ['android', 'com.android.launcher', \
+            #         'com.htc.launcher', 'com.sec.android.app.launcher', 'com.tul.aviate', \
+            #         'com.thinkyeah.smartlockfree', 'com.htc.android.worldclock'], session)
+            if session:
+                sessions.append(session)
         return sessions
+
         # sessions = map(lambda x: x[1:] if x[0] in ['com.htc.launcher', 'com.tul.aviate'] else x, sessions)
         # return sessions
         # print len(sessions)
@@ -166,12 +171,12 @@ class ApeicDBHelper(object):
 def main():
     db_helper = ApeicDBHelper()
     print '\n'.join(db_helper.get_users())
-    sessions = db_helper.get_sessions('5f83a438d9145bb2')
+    sessions = db_helper.get_sessions('475f258ecc566658')
     for session in sessions:
-        for x in session:
-            pass
-            #print x
-        #print 
+        if len(session) > 1:
+            for x in session:
+                print x['application']
+            print len(session), len(set(map(lambda x: x['application'], session)))
 
 if __name__ == '__main__':
     main()

@@ -126,10 +126,12 @@ def choice(population,weights):
 
 def export_weight_file(file_name, weights):
     with open(file_name, 'w') as f:
-        for w in weights:
-            f.write('%s,%f\n' % (w, weights[w]))
+        result = sorted(weights.iteritems(), key=operator.itemgetter(0))
+        for k, v in result:
+            f.write('%s,%f\n' % (k, v))
 
 def get_activity_code(activity_name):
+    return activity_name
     if activity_name in ['STILL', 'TILTING']:
         return 'STATIC'
     else:
@@ -145,15 +147,35 @@ def get_activity_code(activity_name):
 
 # def get_stay_point_code(stay_point_index):
 
+import datetime
+def split(sessions):
+    # print (sessions[-1][-1]['datetime'] - sessions[0][0]['datetime']).days
+    start_date = sessions[0][0]['datetime']
+    midnight = datetime.time(0)
+    start_date = datetime.datetime.combine(start_date.date(), midnight)
+    end_date = start_date + datetime.timedelta(days=21)
 
+    split_index = -1
+    for i in xrange(len(sessions)):
+      if (sessions[i][0]['datetime'] - end_date).days > 0:
+          split_index = i
+          break
+    
+    # print split_index, len(sessions) - split_index
+    return split_index
 
 def main():
     db_helper = ApeicDBHelper()
     users = db_helper.get_users()
     for user in users:
-        if user != '7fab9970aff53ef4':
-            continue
+        # if user != '7fab9970aff53ef4':
+        #     continue
         sessions = db_helper.get_sessions(user)
+        split_index = split(sessions)
+        if split_index == -1:
+            continue
+        else:
+            sessions = sessions[:split_index]
         sessions = map(lambda x: [x[0]], sessions)
         print len(sessions)
         logs = aggregate_sessions(sessions)
@@ -182,8 +204,8 @@ def main():
 
         activities = Counter(map(lambda x: get_activity_code(x['activity']), logs))
         print activities
-        # nc = float(sum(activities.values()))
-        # activities = dict(map(lambda (k,v): (k, v/nc), activities.iteritems()))
+        nc = float(sum(activities.values()))
+        activities = dict(map(lambda (k,v): (k, v/nc), activities.iteritems()))
         # print activities
         export_weight_file('activity.wgt.csv', activities)
 

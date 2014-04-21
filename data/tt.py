@@ -121,39 +121,29 @@ class ApeicPredictor():
                 successor.pred_influence[p] = successor.pred_co_ocrs[p]/predecessor.ocrs
 
     def predict(self, session, ei, ranking, k=4):
-        if len(session) == 0:
-            results = {}
-            for a in ei.keys():
-                # print a
-                if a != 'reverse' and a != 'key':
-                    results[a] = ei[a]/2**self.ic[a].crf
-            results = sorted(results.iteritems(), key=operator.itemgetter(1), reverse=True)
-            results = sorted(ei.iteritems(), key=operator.itemgetter(1), reverse=True)
-            # for a in ei:
-            #     ranking[a] = ei[a]
-            candidates = map(lambda x: x[0], results[2:k+2])
-            # if last not in candidates:
-            #     candidates = map(lambda x: x[0], results[2:k+1]) + [last]
-            return candidates, ranking
+        # results = {}
+        # results = sorted(ei.iteritems(), key=operator.itemgetter(1), reverse=True)
+        # candidates = map(lambda x: x[0], results[2:k+2])
+        # if len(session) == 0:
+        #     candidates = map(lambda x: x[0], results[2:k+2])
+        #     return candidates, ranking
 
-        # ranking = defaultdict(int)
+        ranking = defaultdict(int)
         for pkg_name in self.ic:
-            # ranking[pkg_name] = ei[pkg_name] if pkg_name in ei else 0
-            ranking[pkg_name] += self.ic[pkg_name].pred_influence[session[-1][-1]]
-            # ranking[pkg_name] += self.ic[pkg_name].pred_influence[session[-1][-1]] \
-            #                         + ei[pkg_name] if pkg_name in ei.keys() else 0
+            ranking[pkg_name] = ei[pkg_name] if pkg_name in ei else 0
 
-            # TODO: take recency into consideration
-            # if pkg_name in map(lambda x: x['application'], session[-4:-1]):
-            #   ranking[pkg_name] += 1
-            # if pkg_name in map(lambda x: x['application'], session[:-4]):
-            #   ranking[pkg_name] -= 1
-            # temp = map(lambda x: x['application'], session[:-1])
-            # if pkg_name in temp:
-                # print temp.index(pkg_name), len(temp), temp.index(pkg_name)/float(len(temp))
-                # ranking[pkg_name] += 0.3 - 0.05*(len(temp) - temp.index(pkg_name))
-                # ranking[pkg_name] += 1
+        int_context = map(lambda x: x[-1], session[:-1])
+        for a in int_context:
+            for pkg_name in self.ic:
+                ranking[pkg_name] += self.ic[pkg_name].pred_influence[a]
+        predicted_apps = sorted(ranking.iteritems(), key=operator.itemgetter(1), reverse=True)
+        candidates = [x[0] for x in predicted_apps]        
         
+        if len(int_context) > 0:
+            if int_context[-1] in candidates:
+                candidates.remove(int_context[-1])
+        return candidates[:k], ranking
+
         predicted_apps = sorted(ranking.iteritems(), key=operator.itemgetter(1), reverse=True)
         candidates = [x[0] for x in predicted_apps[:k]]
         return candidates, ranking
@@ -161,144 +151,6 @@ class ApeicPredictor():
 def split(data, ratio=0.8):
     split_index = int(len(data)*ratio)
     return data[:split_index], data[split_index:]
-
-def get_pairs(apps):
-    # pair_num = random.choice(range(3))
-    pair_num = 3
-    pairs = []
-    for i in xrange(pair_num):
-        pair = random.sample(apps, 2)
-        pairs.append(pair)
-    return pairs
-
-def generate_next_app(applications, used_apps, pairs):
-    predecessor = random.choice(used_apps)
-    for p, s in pairs:
-        if predecessor == p and random.choice(range(10)) > 3:
-            return s
-    if len(used_apps) > 2:
-        if random.choice(range(10)) > 1:
-            return random.choice(used_apps[:-1])
-        else:
-            return random.choice(applications)
-    else:
-        if random.choice(range(10)) > 5:
-            return random.choice(used_apps)
-        else:
-            return random.choice(applications)
-
-
-class SessionGenerator():
-
-    def __init__(session_num=100, app_num=20):
-        self.session_num = session_num
-        self.app_num = app_num
-
-    def generate(self):
-        causality = _generate_causality()
-
-        for i in xrange(session_num):
-            used_apps = []
-            session = []
-            application = random.choice(applications)
-            used_apps.append(application)
-            log = logs[i][:-1] + [application]
-            session.append(log)
-            for j in xrange(random.choice(range(1, 5))):
-                application = generate_next_app(causality, used_apps)
-                used_apps.append(application)
-                log = logs[i][:-1] + [application]
-                session.append(log)
-            sessions.append(session)
-        
-    def _init_session(self):
-        with open('app_usage_logs.flat', 'r') as f:
-            lines = f.readlines()
-            logs = map(lambda x: x.strip().split(), lines)
-            applications = map(lambda x: x[-1], logs)
-            self.app_num = len(applications)
-
-    def _generate_causality(self):
-        causality = {}
-        for i in xrange(len(self.app_num)):
-            causality[hex(i)] = App(hex(i))
-
-        for s in causality:
-            count = 0
-            cdf = 0
-            for p in causality:
-                count += 1
-                if count < len(applications) and cdf < 1:
-                    influence = random.uniform(0.0001, 1 - cdf)
-                    causality[s].pred_influence[p] = influence
-                    cdf += influence
-                else:
-                    influence = max(1 - cdf, 0.0001)
-                    causality[s].pred_influence[p] = influence
-        return causality
-
-    def _generate_successor(self):
-        candidates = defaultdict(int)
-
-        for p in used_apps:
-            for s in causality:
-                candidates[s] += causality[s].pred_influence[p]
-
-        successor = choice(candidates.keys(), candidates.values())
-        while successor == p:
-            successor = choice(candidates.keys(), candidates.values())
-        return successor
-
-
-def generate_causality(applications):
-    causality = {}
-    for app in applications:
-        causality[app] = App(app)
-
-    # for i in xrange(len(applications)):
-    #     cdf = 0
-    #     for j in xrange(len(applications)):
-    #         if i != len(applications) - 1:
-    #             influence = random.uniform(0.0001, max(1 - cdf, 0.7))
-    #             causality[applications[i]].pred_influence[applications[j]] = influence
-    #             cdf += influence
-    #         else:
-    #             influence = 1 - cdf
-    #             causality[applications[i]].pred_influence[applications[j]] = influence
-
-    for s in causality:
-        count = 0
-        cdf = 0
-        for p in causality:
-            count += 1
-            if count < len(applications) and cdf < 1:
-                influence = random.uniform(0.0001, 1 - cdf)
-                causality[s].pred_influence[p] = influence
-                cdf += influence
-            else:
-                influence = max(1 - cdf, 0.0001)
-                causality[s].pred_influence[p] = influence
-
-    # for s in causality:
-    #     print s
-    #     for p in causality:
-    #         print p, causality[s].pred_influence[p]
-    #     print sum(causality[s].pred_influence.values())
-    #     print
-    return causality
-
-def generate_next_app(causality, used_apps):
-    candidates = defaultdict(int)
-
-    for p in used_apps:
-        # p = used_apps[-1]
-        for s in causality:
-            candidates[s] += causality[s].pred_influence[p]
-
-    winner = choice(candidates.keys(), candidates.values())
-    while winner == p:
-        winner = choice(candidates.keys(), candidates.values())
-    return winner
 
 def cdf(weights):
     total=sum(weights)
@@ -318,99 +170,7 @@ def choice(population,weights):
     return population[idx]
 
 def main():
-    # start generating sessions
-    for i in xrange(1):
-        with open('app_usage_logs.flat', 'r') as f:
-            lines = f.readlines()
-            logs = map(lambda x: x.strip().split(), lines)
-            applications = map(lambda x: x[-1], logs)
-
-        causality = generate_causality(applications)
-
-        sessions = []
-        for i in xrange(len(logs)):
-            used_apps = []
-            session = []
-            application = random.choice(applications)
-            used_apps.append(application)
-            log = logs[i][:-1] + [application]
-            session.append(log)
-            for j in xrange(random.choice(range(1, 5))):
-                application = generate_next_app(causality, used_apps)
-                used_apps.append(application)
-                log = logs[i][:-1] + [application]
-                session.append(log)
-            sessions.append(session)
-        # finish generating sessions
-
-
-        training_sessions, testing_sessions = split(sessions)
-
-        extractor = FeatureExtractor()
-        training_logs = list(itertools.chain(*training_sessions))
-        X, y = extractor.generate_training_instances(training_logs)
-        nb = MultinomialNB()
-        nb_predictor = nb.fit(X, y)
-
-        predictor = ApeicPredictor()
-        for session in training_sessions:
-            predictor.update(session)
-
-        hits = 0.0
-        misses = 0.0
-        last_app = ''
-        for session in testing_sessions:
-            ranking = defaultdict(int)
-            for i in xrange(len(session)):
-                log = session[i][:-1] + [last_app] + [session[i][-1]]
-                instance = extractor.transform(log)
-                ei = dict(zip(nb_predictor.classes_, nb_predictor.predict_proba(instance)[0]), \
-                    key=operator.itemgetter(1), reverse=True)
-                candidates, ranking = predictor.predict(session[:i], ei, ranking, 4)
-                last_app = session[i][-1]
-                if session[i][-1] in candidates:
-                    hits += 1.0
-                else:
-                    misses += 1.0
-            predictor.update(session)
-
-        acc = (hits)/(hits + misses)
-        print acc, hits, misses
-
-
-        hits = 0.0
-        misses = 0.0
-        last_app = ''
-        for log in list(itertools.chain(*testing_sessions)):
-            log = log[:-1] + [last_app] + [log[-1]]
-            instance = extractor.transform(log)
-            ranking = sorted(zip(nb_predictor.classes_, nb_predictor.predict_proba(instance)[0]), \
-                                key=operator.itemgetter(1), reverse=True)
-            candidates = map(lambda x: x[0], ranking[:4])
-            last_app = log[-1]
-            if log[-1] in candidates:
-                hits += 1.0
-            else:
-                misses += 1.0
-
-        acc = hits/(hits + misses)
-        print acc, hits, misses
-
-        hits = 0.0
-        misses = 0.0
-        used_applications = map(lambda x: x[-1], list(itertools.chain(*training_sessions)))
-        counter = Counter(used_applications)
-        candidates = map(lambda x: x[0],  counter.most_common(4))
-        for log in list(itertools.chain(*testing_sessions)):
-            if log[-1] in candidates:
-                hits += 1.0
-            else:
-                misses += 1.0
-        acc = hits/(hits + misses)
-        print acc, hits, misses
-
-        print
-
+    pass
 
 if __name__ == '__main__':
     main()
