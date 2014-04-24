@@ -8,3 +8,5 @@ sys.path.append(dir_name)
 sys.path.append('/home/linzy/Projects/ApeicServer')
 sys.path.append('/home/linzy/Projects/ApeicServer/predictor')
 sys.path.append('/home/linzy/Projects/ApeicServer/apeic')
+
+# __all__ = ["apeic_db_manager"]

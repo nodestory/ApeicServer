@@ -34,7 +34,7 @@ class FeatureExtractor():
         y = map(lambda x: x[-1], logs)
         return X, y
 
-    def transform(self, log):
+    def transform(self, log, last_app):
         # d, h, a, s, last_app, app = log
         d, h, a, app = log
         instance = {}
@@ -88,17 +88,11 @@ class ApeicPredictor():
         count += 1
 
         if len(session) > 1:
+            # """
             app_pkg_names = [x[-1] for x in session]
             for predecessor in list(OrderedDict.fromkeys(app_pkg_names)):
                 successors = []
                 indices = [i for i, x in enumerate(app_pkg_names) if x == predecessor]
-                # if len(indices) == 1:
-                #   if i < len(session) - 1:
-                #       successor = session[i+1]['application']
-                #       app = self.ic.setdefault(successor, App(successor))
-                #       app.pred_co_ocrs[predecessor] += 1.0
-                #   continue
-
                 indices.append(len(session))
                 for i in xrange(len(indices) - 1):
                     for j in xrange(indices[i] + 1, indices[i+1]):
@@ -107,11 +101,16 @@ class ApeicPredictor():
                             app = self.ic.setdefault(successor, App(successor))
                             app.pred_co_ocrs[predecessor] += 1.0
                             successors.append(successor)
+                    instance = self.ic.setdefault(predecessor, App(predecessor))
+                    instance.pred_co_ocrs[predecessor] += 1.0
+            # """
 
-            # for i in xrange(1, len(session)):
-            #   successor = session[i]['application']
-            #   app = self.ic.setdefault(successor, App(successor))
-            #   app.pred_co_ocrs[session[i-1]['application']] += 1.0
+            """
+            for i in xrange(1, len(session)):
+              successor = session[i][-1]
+              app = self.ic.setdefault(successor, App(successor))
+              app.pred_co_ocrs[session[i-1][-1]] += 1.0
+            """
 
         for pkg_name in self.ic:
             successor = self.ic[pkg_name]
@@ -120,14 +119,7 @@ class ApeicPredictor():
                 # TODO: perform experiments with differnect measures
                 successor.pred_influence[p] = successor.pred_co_ocrs[p]/predecessor.ocrs
 
-    def predict(self, session, ei, ranking, k=4):
-        # results = {}
-        # results = sorted(ei.iteritems(), key=operator.itemgetter(1), reverse=True)
-        # candidates = map(lambda x: x[0], results[2:k+2])
-        # if len(session) == 0:
-        #     candidates = map(lambda x: x[0], results[2:k+2])
-        #     return candidates, ranking
-
+    def predict(self, session, ei, terminator, k=4):
         ranking = defaultdict(int)
         for pkg_name in self.ic:
             ranking[pkg_name] = ei[pkg_name] if pkg_name in ei else 0
@@ -136,17 +128,19 @@ class ApeicPredictor():
         for a in int_context:
             for pkg_name in self.ic:
                 ranking[pkg_name] += self.ic[pkg_name].pred_influence[a]
-        predicted_apps = sorted(ranking.iteritems(), key=operator.itemgetter(1), reverse=True)
-        candidates = [x[0] for x in predicted_apps]        
+        candidates = sorted(ranking, key=ranking.get, reverse=True)
         
-        if len(int_context) > 0:
+
+        if len(int_context) == 0:
+            if terminator not in candidates[:k] and terminator != '':
+                candidates.insert(0, terminator)
+                # pass
+            # if starter not in candidates[:k+1] and starter != '':
+            #   candidates.insert(0, starter)
+        else:
             if int_context[-1] in candidates:
                 candidates.remove(int_context[-1])
-        return candidates[:k], ranking
-
-        predicted_apps = sorted(ranking.iteritems(), key=operator.itemgetter(1), reverse=True)
-        candidates = [x[0] for x in predicted_apps[:k]]
-        return candidates, ranking
+        return candidates[:k]
 
 def split(data, ratio=0.8):
     split_index = int(len(data)*ratio)

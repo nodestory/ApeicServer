@@ -170,13 +170,24 @@ class ApeicDBHelper(object):
 
 def main():
     db_helper = ApeicDBHelper()
-    print '\n'.join(db_helper.get_users())
-    sessions = db_helper.get_sessions('475f258ecc566658')
-    for session in sessions:
-        if len(session) > 1:
-            for x in session:
-                print x['application']
-            print len(session), len(set(map(lambda x: x['application'], session)))
+
+    # hits = 0.0
+    # misses = 0.0
+    users = db_helper.get_users()
+    for user in users:
+        hits = 0.0
+        misses = 0.0
+
+        sessions = db_helper.get_sessions(user)
+        terminator = sessions[0][-1]['application']
+        for session in sessions[1:]:
+            if session[0]['application'] == terminator:
+                hits += 1.0
+            else:
+                misses += 1.0
+            terminator = session[0]['application']
+        print hits/(hits + misses)
 
 if __name__ == '__main__':
     main()
+

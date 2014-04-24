@@ -169,19 +169,50 @@ class FeatureExtractor():
 
 import datetime
 def split(sessions, ratio=0.8):
+    # start_date = sessions[0][0]['datetime']
+    # midnight = datetime.time(0)
+    # start_date = datetime.datetime.combine(start_date.date(), midnight)
+    # end_date = start_date + datetime.timedelta(days=21)
+
+    # split_index = int(len(sessions)*ratio)
+    # for i in xrange(len(sessions)):
+    #     if (sessions[i][0]['datetime'] - end_date).days > 0:
+    #         split_index = i
+    #         break
+    
+    # print split_index, len(sessions) - split_index
+    # return sessions[:split_index], sessions[split_index:]
+
+    # print (sessions[-1][-1]['datetime'] - sessions[0][0]['datetime']).days
     start_date = sessions[0][0]['datetime']
     midnight = datetime.time(0)
     start_date = datetime.datetime.combine(start_date.date(), midnight)
-    end_date = start_date + datetime.timedelta(days=21)
+    end_date = start_date + datetime.timedelta(days=7)
 
     split_index = int(len(sessions)*ratio)
+    # return sessions[:split_index], sessions[split_index:]
     for i in xrange(len(sessions)):
         if (sessions[i][0]['datetime'] - end_date).days > 0:
             split_index = i
             break
-    
-    print split_index, len(sessions) - split_index
-    return sessions[:split_index], sessions[split_index:]
+
+    test_sessions = sessions[split_index:]
+    start_date = test_sessions[0][0]['datetime']
+    midnight = datetime.time(0)
+    start_date = datetime.datetime.combine(start_date.date(), midnight)
+    end_date = start_date + datetime.timedelta(days=7)
+    tt = -1
+    for i in xrange(len(test_sessions)):
+        if (test_sessions[i][0]['datetime'] - end_date).days > 0:
+            tt = i
+            break
+    if tt != -1:
+        test_sessions = test_sessions[:tt]
+
+    # print split_index, len(sessions) - split_index
+    # return sessions[:split_index], sessions[split_index:]
+    return sessions[:split_index], test_sessions
+
 
 def aggregate_sessions(sessions):
     return list(itertools.chain(*sessions))
@@ -199,7 +230,19 @@ def main():
         print colored(user, attrs=['blink'])
 
         sessions = db_helper.get_sessions(user)
-        training_sessions, tesiting_sessions = split(sessions, 0.8)
+
+        last = sessions[0][-1]['application']
+        test = [sessions[0]]
+        for s in sessions[1:]:
+            if s[0]['application'] == last:
+                if s[1:]:
+                    test.append(s[1:])
+            else:
+                test.append(s)
+            last = s[-1]['application']
+        training_sessions, testing_sessions = split(test, 0.8)
+
+        # training_sessions, testing_sessions = split(sessions, 0.8)
         logs = aggregate_sessions(training_sessions)
 
         extractor = FeatureExtractor()
@@ -208,7 +251,7 @@ def main():
         predictor = nb.fit(X, y)
 
         last_used_app = ''
-        for session in tesiting_sessions:
+        for session in testing_sessions:
             for log in session:
                 # if log['application'] in ['com.android.settings', \
                 #     'com.android.packageinstaller', 'com.htc.android.worldclock', 'com.android.systemui']:
@@ -217,7 +260,7 @@ def main():
                 instance = extractor.transform(last_used_app, log)
                 ranking = sorted(zip(predictor.classes_, predictor.predict_proba(instance)[0]), \
                                     key=operator.itemgetter(1), reverse=True)
-                candidates = map(lambda x: x[0], ranking[:4])
+                candidates = map(lambda x: x[0], ranking[:8])
                 if log['application'] in candidates:
                     hits += 1.0
                 else:

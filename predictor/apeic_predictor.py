@@ -36,7 +36,6 @@ class ApeicPredictor(Predictor):
 		for name in launched_apps:
 			instance = self.app_instances.setdefault(name, AppInstance(name))
 			instance.ocrs += 1.0
-
 		if len(session) > 1:
 			# """
 			for predecessor in list(OrderedDict.fromkeys(launched_apps)):
@@ -46,7 +45,7 @@ class ApeicPredictor(Predictor):
 				for i in xrange(len(indices) - 1):
 					for j in xrange(indices[i] + 1, indices[i+1]):
 						successor = session[j]['application']
-						if successor not in successors:
+						if successor not in successors:		
 							instance = self.app_instances.setdefault(successor, AppInstance(successor))
 							instance.pred_co_ocrs[predecessor] += 1.0
 							successors.append(successor)
@@ -77,18 +76,16 @@ class ApeicPredictor(Predictor):
 		for pkg_name in self.app_instances:
 			ranking[pkg_name] = result[pkg_name] if pkg_name in result else 0
 		int_context = map(lambda x: x['application'], session[:-1])
-		temp = []
-		for a in int_context:
-			if a not in self.app_instances:
-				temp.append(a)
-			else:
-				for pkg_name in self.app_instances:
-					ranking[pkg_name] += self.app_instances[pkg_name].pred_influence[a]
+		# TODO: set(int_context)?
+		for a in set(int_context):
+			for pkg_name in self.app_instances:
+				ranking[pkg_name] += self.app_instances[pkg_name].pred_influence[a]
 
 		candidates = sorted(ranking, key=ranking.get, reverse=True)
 		if len(int_context) == 0:
 			if terminator not in candidates[:k] and terminator != '':
 				candidates.insert(0, terminator)
+				# pass
 			# if starter not in candidates[:k+1] and starter != '':
 			# 	candidates.insert(0, starter)
 		else:
@@ -126,16 +123,31 @@ def split(sessions, ratio=0.8):
 	start_date = sessions[0][0]['datetime']
 	midnight = datetime.time(0)
 	start_date = datetime.datetime.combine(start_date.date(), midnight)
-	end_date = start_date + datetime.timedelta(days=21)
+	end_date = start_date + datetime.timedelta(days=14)
 
 	split_index = int(len(sessions)*ratio)
-	# for i in xrange(len(sessions)):
-	# 	if (sessions[i][0]['datetime'] - end_date).days > 0:
-	# 		split_index = i
-	# 		break
-	
+	# return sessions[:split_index], sessions[split_index:]
+	for i in xrange(len(sessions)):
+		if (sessions[i][0]['datetime'] - end_date).days > 0:
+			split_index = i
+			break
+
+	test_sessions = sessions[split_index:]
+	start_date = test_sessions[0][0]['datetime']
+	midnight = datetime.time(0)
+	start_date = datetime.datetime.combine(start_date.date(), midnight)
+	end_date = start_date + datetime.timedelta(days=7)
+	tt = -1
+	for i in xrange(len(test_sessions)):
+		if (test_sessions[i][0]['datetime'] - end_date).days > 0:
+			tt = i
+			break
+	if tt != -1:
+		test_sessions = test_sessions[:tt]
+
 	# print split_index, len(sessions) - split_index
-	return sessions[:split_index], sessions[split_index:]
+	# return sessions[:split_index], sessions[split_index:]
+	return sessions[:split_index], test_sessions
 
 import sys
 sys.path.append('/home/linzy/Projects/ApeicServer/apeic')
@@ -155,6 +167,18 @@ def main():
 
 		sessions = db_helper.get_sessions(user)
 		training_sessions, testing_sessions = split(sessions, 0.8)
+		# training_sessions = map(lambda x: x[1:], training_sessions)
+		last = sessions[0][-1]['application']
+		test = [sessions[0]]
+		for s in sessions[1:]:
+			if s[0]['application'] == last:
+				if s[1:]:
+					test.append(s[1:])
+			else:
+				test.append(s)
+			last = s[-1]['application']
+		training_sessions, testing_sessions = split(test, 0.8)
+
 		seen_apps = []
 		for s in training_sessions:
 			seen_apps.extend(map(lambda x: x['application'], s))
@@ -173,8 +197,8 @@ def main():
 		for session in testing_sessions:
 			# print '\n'.join(map(lambda x: x['application'], session))
 			for i in xrange(len(session)):
-				candidates = predictor.predict(starter, terminator, session[:i+1], 4)
-				assert len(candidates) == 4
+				candidates = predictor.predict(starter, terminator, session[:i+1], 8)
+				# assert len(candidates) == 4
 
 				# if session[i]['application'] not in candidates:
 				# 	print i, session[i]['application']
@@ -194,7 +218,7 @@ def main():
 			starter = session[0]['application']
 			terminator = session[-1]['application']
 
-			# predictor.update(session)
+			predictor.update(session)
 
 			# logs = aggregate_sessions(training_sessions + [session])
 			# extractor = FeatureExtractor()
