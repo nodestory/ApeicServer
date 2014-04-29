@@ -74,13 +74,14 @@ class FeatureExtractor():
         for i in xrange(len(logs)):
             instance = {}
             instance['hour_of_day'] = logs[i]['datetime'].hour
+            instance['day_of_week'] = logs[i]['datetime'].isoweekday()
             # instance['day_of_week'] = 'Y' if logs[i]['datetime'].isoweekday() in ['6', '7'] else 'N'
             # instance['activity'] = logs[i]['activity']
             if logs[i]['activity'] in [u'STILL', u'TILTING']:
                 instance['activity'] = 'S'
             else:
                 instance['activity'] = logs[i]['activity']
-
+            instance['activity'] = logs[i]['activity']
             # if logs[i]['activity_conf'] > 70:
             #     instance['activity'] = logs[i]['activity']
             # else:
@@ -106,12 +107,12 @@ class FeatureExtractor():
             # instance['illumination'] = logs[i]['illumination']
             # instance['mobile_connection'] = logs[i]['mobile_connection']
             # instance['wifi_connection'] = logs[i]['wifi_connection']
-            # if logs[i]['mobile_connection'] == '1' or logs[i]['wifi_connection'] == '1':
-            #     instance['c'] = 'Y'
-            # else:
-            #     instance['c'] = 'N'
+            if logs[i]['mobile_connection'] == '1' or logs[i]['wifi_connection'] == '1':
+                instance['c'] = 'Y'
+            else:
+                instance['c'] = 'N'
             # instance['wifi_ap_num'] = logs[i]['wifi_ap_num']
-            instance['last_used_app'] = last_used_app
+            # instance['last_used_app'] = last_used_app
             instances.append(instance)
             last_used_app = logs[i]['application']
         # print len(stay_points)
@@ -124,12 +125,13 @@ class FeatureExtractor():
     def transform(self, last_used_app, log):
         instance = {}
         instance['hour_of_day'] = log['datetime'].hour
-        # instance['day_of_week'] = 'Y' if log['datetime'].isoweekday() in ['6', '7'] else 'N'
+        instance['day_of_week'] = log['datetime'].isoweekday()
+         # 'Y' if log['datetime'].isoweekday() in ['6', '7'] else 'N'
         if log['activity'] in [u'STILL', u'TILTING']:
             instance['activity'] = 'S'
         else:
             instance['activity'] = log['activity']
-
+        instance['activity'] = log['activity']
         # if log['activity_conf'] > 70:
         #         instance['activity'] = log['activity']
         # else:
@@ -150,14 +152,14 @@ class FeatureExtractor():
         else:
             instance['stay_point'] = str(-2)
             # instance['stay_point'] = log['activity']
-        instance['last_used_app'] = last_used_app
+        # instance['last_used_app'] = last_used_app
         # instance['illumination'] = log['illumination']
         # instance['mobile_connection'] = log['mobile_connection']
         # instance['wifi_connection'] = log['wifi_connection']
-        # if log['mobile_connection'] == '1' or log['wifi_connection'] == '1':
-        #     instance['c'] = 'Y'
-        # else:
-        #     instance['c'] = 'N'
+        if log['mobile_connection'] == '1' or log['wifi_connection'] == '1':
+            instance['c'] = 'Y'
+        else:
+            instance['c'] = 'N'
         # instance['speed'] = log['speed']
         # instance['wifi_ap_num'] = log['wifi_ap_num']
         x = self.vectorizer.transform(instance)
@@ -187,7 +189,7 @@ def split(sessions, ratio=0.8):
     start_date = sessions[0][0]['datetime']
     midnight = datetime.time(0)
     start_date = datetime.datetime.combine(start_date.date(), midnight)
-    end_date = start_date + datetime.timedelta(days=7)
+    end_date = start_date + datetime.timedelta(days=21)
 
     split_index = int(len(sessions)*ratio)
     # return sessions[:split_index], sessions[split_index:]
@@ -210,8 +212,8 @@ def split(sessions, ratio=0.8):
         test_sessions = test_sessions[:tt]
 
     # print split_index, len(sessions) - split_index
-    # return sessions[:split_index], sessions[split_index:]
-    return sessions[:split_index], test_sessions
+    return sessions[:split_index], sessions[split_index:]
+    # return sessions[:split_index], test_sessions
 
 
 def aggregate_sessions(sessions):
@@ -242,7 +244,7 @@ def main():
             last = s[-1]['application']
         training_sessions, testing_sessions = split(test, 0.8)
 
-        # training_sessions, testing_sessions = split(sessions, 0.8)
+        training_sessions, testing_sessions = split(sessions, 0.8)
         logs = aggregate_sessions(training_sessions)
 
         extractor = FeatureExtractor()
@@ -260,7 +262,7 @@ def main():
                 instance = extractor.transform(last_used_app, log)
                 ranking = sorted(zip(predictor.classes_, predictor.predict_proba(instance)[0]), \
                                     key=operator.itemgetter(1), reverse=True)
-                candidates = map(lambda x: x[0], ranking[:8])
+                candidates = map(lambda x: x[0], ranking[:4])
                 if log['application'] in candidates:
                     hits += 1.0
                 else:

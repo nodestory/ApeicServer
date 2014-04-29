@@ -36,7 +36,7 @@ class AppDistr(object):
 
 class SessionGenerator():
 
-    def __init__(self, app_num=40, session_num=600):
+    def __init__(self, app_num=50, session_num=600):
         self.app_num = app_num
         self.session_num = session_num
 
@@ -322,15 +322,15 @@ class SessionGenerator():
             print '\n'.join(map(lambda x: x[-1], session))
             print
 
-            # new_session = [session[0]]
-            # for s in session[1:]:
-            #     if s[-1] != new_session[-1][-1]:
-            #         new_session.append(s)
-            # print '\n'.join(map(lambda x: x[-1], new_session))
-            # print
-            # sessions.append(new_session)
+            new_session = [session[0]]
+            for s in session[1:]:
+                if s[-1] != new_session[-1][-1]:
+                    new_session.append(s)
+            print '\n'.join(map(lambda x: x[-1], new_session))
+            print
+            sessions.append(new_session)
 
-            sessions.append(session)
+            # sessions.append(session)
             last = session[-1][-1]
             # print '\n'.join(map(lambda x: x[-1], session))
             # print
@@ -378,7 +378,7 @@ class SessionGenerator():
         # TODO: decide the length of this session
         # TODO: decide the number of Apps used in this session
         session_len = 5
-        used_app_num = choice([1, 2, 3, 4, 5], [46, 86, 16, 5, 4])
+        used_app_num = choice([2, 3, 4, 5], [86, 16, 5, 4])
         # choice([2, 3, 4], [0.4, 0.5, 0.1])
         used_apps = []
         # if last != '':
@@ -408,25 +408,33 @@ class SessionGenerator():
         # positions = [0]
          # + random.sample(range(2, session_len), used_app_num - 2, 1)
         positions = sorted(positions)
+        positions = random.sample(range(session_len), choice([2, 3, 4, 5], [86, 16, 5, 4]))
         # positions = [0] + positions[1:]
 
         used_apps = sorted(used_apps)
         # used_apps = random.sample(used_apps[:4], 4) + random.sample(used_apps[4:], 4)
 
-
+        # a = used_apps.pop(0)
         print positions
         others = list(used_apps)
         for i in xrange(session_len):
             if i in positions:
                 app = used_apps.pop(0)
+                # app = a
             else:
                 init = -1
-                for a in self.launching_contrib:
-                    if a != int_context[-1]:
-                        score = self.launching_contrib[a].pred_influence[int_context[-1]]
-                        if score > init:
-                            init = score
-                            app = a
+                if len(int_context) == 0:
+                    app = choice(map(lambda x: x[0], candidates), map(lambda x: x[1], candidates))
+                    continue
+                app = choice(map(lambda x: x, self.launching_contrib), \
+                    map(lambda x: self.launching_contrib[x].pred_influence[int_context[-1]], self.launching_contrib))
+                # for a in self.launching_contrib:
+                #     if a != int_context[-1]:
+                #         score = self.launching_contrib[a].pred_influence[int_context[-1]]
+                #         if score > init:
+                #             init = score
+                #             app = a
+
                 """                            
                 app = random.choice(int_context)
                 while app == int_context[-1]:
@@ -574,11 +582,12 @@ def main():
     acc = hits/(hits + misses)
     print acc, hits, misses
 
-
+from generate_synthetic_data import SyntheticDataGenerator
 def test():
-    generator = SessionGenerator()
+    # generator = SessionGenerator()
+    generator = SyntheticDataGenerator()
     sessions = generator.generate_sessions()
-    training_sessions, testing_sessions = split(sessions)
+    training_sessions, testing_sessions = split(sessions, 0.8)
         
     # logs = list(itertools.chain(*sessions))
     # training_logs, testing_logs = split(logs)
@@ -588,7 +597,6 @@ def test():
     X, y = extractor.generate_training_instances(training_logs)
     nb = MultinomialNB()
     nb_predictor = nb.fit(X, y)
-
 
     predictor = ApeicPredictor()
     for session in training_sessions:
@@ -605,21 +613,25 @@ def test():
             ei = dict(zip(nb_predictor.classes_, nb_predictor.predict_proba(instance)[0]), \
                 key=operator.itemgetter(1), reverse=True)
             candidates = predictor.predict(session[:i], ei, last_app, 4)
-            last_app = log[-1]
+            # last_app = log[-1]
             if session[i][-1] in candidates:
                 hits += 1.0
             else:
                 misses += 1.0
-        predictor.update(session)
+        # predictor.update(session)
 
     apeic_acc = (hits)/(hits + misses)
     print apeic_acc, hits, misses
+
+    X, y = extractor.generate_training_instances(training_logs, True)
+    nb = MultinomialNB()
+    nb_predictor = nb.fit(X, y)
 
     hits = 0.0
     misses = 0.0
     last_app = ''
     for log in testing_logs:
-        instance = extractor.transform(log, last_app)
+        instance = extractor.transform(log, last_app, True)
         ranking = sorted(zip(nb_predictor.classes_, nb_predictor.predict_proba(instance)[0]), \
                             key=operator.itemgetter(1), reverse=True)
         last_app = log[-1]

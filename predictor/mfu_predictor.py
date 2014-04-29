@@ -37,7 +37,7 @@ def main():
 		predictor = MFUPredictor()
 		predictor.train(training_logs)
 
-		hit_rate, mrr = predictor.test(testing_logs, 1)
+		hit_rate, mrr = predictor.test(testing_logs, 6)
 		print hit_rate, mrr
 		results.append((hit_rate, mrr))
 	avg_hit_rate = sum(map(lambda x: x[0], results))/len(results)

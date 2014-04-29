@@ -96,9 +96,12 @@ class ApeicDBHelper(object):
 
         new_segments = []
         for segment in segments:
-            segment = filter(lambda x: x['application'] not in ['android', 'com.android.launcher', \
-                    'com.htc.launcher', 'com.sec.android.app.launcher', 'com.tul.aviate', \
-                    'com.thinkyeah.smartlockfree', 'com.htc.android.worldclock', 'com.android.settings'], segment)
+            segment = filter(lambda x: x['application'] not in [ \
+                                'android', \
+                                'com.android.launcher', 'com.htc.launcher', 'com.sec.android.app.launcher', \
+                                'com.tul.aviate', 'com.coverscreen.cover', 'com.mycolorscreen.themer', \
+                                'com.thinkyeah.smartlockfree', 'com.htc.android.worldclock', 'com.zdworks.android.zdclock' \
+                                ], segment)
             if len(segment) > 0:
                 new_segments.append(segment)
 
@@ -146,11 +149,11 @@ class ApeicDBHelper(object):
         aggregated_sessions.append(session)
         while sessions:
             session = sessions.pop(0)
-            if (session[0]['datetime'] - aggregated_sessions[-1][-1]['datetime']).seconds < 180:
+            if (session[0]['datetime'] - aggregated_sessions[-1][-1]['datetime']).seconds < 60:
                  aggregated_sessions[-1].extend(session)
             else:
                 aggregated_sessions.append(session)
-        # return aggregated_sessions
+        return aggregated_sessions
 
         # remove duplicate records
         sessions = []
@@ -168,6 +171,8 @@ class ApeicDBHelper(object):
         apps = filter(lambda x: x not in ApeicDBHelper.IGNORED_APPLICATIONS, apps)
         return apps
 
+import itertools
+from collections import Counter
 def main():
     db_helper = ApeicDBHelper()
 
@@ -175,18 +180,32 @@ def main():
     # misses = 0.0
     users = db_helper.get_users()
     for user in users:
-        hits = 0.0
-        misses = 0.0
-
         sessions = db_helper.get_sessions(user)
-        terminator = sessions[0][-1]['application']
-        for session in sessions[1:]:
-            if session[0]['application'] == terminator:
-                hits += 1.0
-            else:
-                misses += 1.0
-            terminator = session[0]['application']
-        print hits/(hits + misses)
+        sessions = map(lambda x: x[:1], sessions)
+        logs = list(itertools.chain(*sessions))
+        apps = map(lambda x: x['application'], logs)
+        
+        print user
+        counter = Counter(apps)
+        count = 0
+        for k in counter:
+            if counter[k] > 20:
+                count += 1
+                print k, counter[k]
+        print count, len(db_helper.get_used_apps(user))
+        print
+        # hits = 0.0
+        # misses = 0.0
+
+        # sessions = db_helper.get_sessions(user)
+        # terminator = sessions[0][-1]['application']
+        # for session in sessions[1:]:
+        #     if session[0]['application'] == terminator:
+        #         hits += 1.0
+        #     else:
+        #         misses += 1.0
+        #     terminator = session[0]['application']
+        # print hits/(hits + misses)
 
 if __name__ == '__main__':
     main()

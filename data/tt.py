@@ -1,4 +1,5 @@
 import itertools
+import math
 import operator
 import random
 from sklearn.feature_extraction import DictVectorizer
@@ -17,7 +18,7 @@ class FeatureExtractor():
     def __init__(self):
         self.vectorizer = DictVectorizer()
 
-    def generate_training_instances(self, logs):
+    def generate_training_instances(self, logs, l=False):
         instances = []
         last_app = ''
         # for d, h, a, s, app in logs:
@@ -27,14 +28,15 @@ class FeatureExtractor():
             instance['hour_of_day'] = h
             instance['activity'] = a
             # instance['stay_point'] = s
-            # instance['last_app'] = last_app
+            # if l:
+            #     instance['last_app'] = last_app
             instances.append(instance)
-            last_app = app
+            # last_app = app
         X = self.vectorizer.fit_transform(instances).toarray()
         y = map(lambda x: x[-1], logs)
         return X, y
 
-    def transform(self, log, last_app):
+    def transform(self, log, last_app, l=False):
         # d, h, a, s, last_app, app = log
         d, h, a, app = log
         instance = {}
@@ -42,7 +44,8 @@ class FeatureExtractor():
         instance['hour_of_day'] = h
         instance['activity'] = a
         # instance['stay_point'] = s
-        # instance['last_app'] = last_app
+        # if l:
+        #     instance['last_app'] = last_app
         x = self.vectorizer.transform(instance)
         return self.vectorizer.transform(instance).toarray()[0]
 
@@ -65,6 +68,8 @@ class ApeicPredictor():
 
     def train(self, sessions):
         # environmental context
+        temp = map(lambda x: x[:1], sessions)
+        logs = list(chain(*temp))
         logs = aggregate_sessions(sessions)
         extractor = FeatureExtractor()
         X, y = extractor.generate_training_instances(logs)
@@ -100,6 +105,10 @@ class ApeicPredictor():
                         if successor not in successors:
                             app = self.ic.setdefault(successor, App(successor))
                             app.pred_co_ocrs[predecessor] += 1.0
+
+                            # app = self.ic.setdefault(predecessor, App(predecessor))
+                            # app.pred_co_ocrs[successor] += 1.0
+
                             successors.append(successor)
                     instance = self.ic.setdefault(predecessor, App(predecessor))
                     instance.pred_co_ocrs[predecessor] += 1.0
@@ -117,6 +126,8 @@ class ApeicPredictor():
             for p in successor.pred_co_ocrs:
                 predecessor = self.ic[p]
                 # TODO: perform experiments with differnect measures
+                # math.log(predecessor.ocrs)
+                # predecessor.crf*
                 successor.pred_influence[p] = successor.pred_co_ocrs[p]/predecessor.ocrs
 
     def predict(self, session, ei, terminator, k=4):
@@ -125,19 +136,15 @@ class ApeicPredictor():
             ranking[pkg_name] = ei[pkg_name] if pkg_name in ei else 0
 
         int_context = map(lambda x: x[-1], session[:-1])
+        # if len(int_context) > 1:
+        #     ranking = defaultdict(int)
         for a in int_context:
             for pkg_name in self.ic:
                 ranking[pkg_name] += self.ic[pkg_name].pred_influence[a]
         candidates = sorted(ranking, key=ranking.get, reverse=True)
         
 
-        if len(int_context) == 0:
-            if terminator not in candidates[:k] and terminator != '':
-                candidates.insert(0, terminator)
-                # pass
-            # if starter not in candidates[:k+1] and starter != '':
-            #   candidates.insert(0, starter)
-        else:
+        if len(int_context) > 0:
             if int_context[-1] in candidates:
                 candidates.remove(int_context[-1])
         return candidates[:k]

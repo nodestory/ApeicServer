@@ -23,8 +23,10 @@ class ApeicPredictor(Predictor):
 
 	def train(self, sessions):
 		# TODO: refactor by using nb_predictor
-		logs = list(chain(*sessions))
-		X, y = self.feature_extractor.generate_training_instances(logs)
+		temp = map(lambda x: x[:1], sessions)
+		logs = list(chain(*temp))
+		# logs = list(chain(*sessions))
+		X, y = self.feature_extractor.generate_training_instances(logs, l=False)
 		nb = MultinomialNB()
 		self.nb_predictor = nb.fit(X, y)
 
@@ -64,6 +66,7 @@ class ApeicPredictor(Predictor):
 			successor = self.app_instances[pkg_name]
 			for p in successor.pred_co_ocrs:
 				predecessor = self.app_instances[p]
+				# math.log(predecessor.ocrs)*
 				successor.pred_influence[p] = successor.pred_co_ocrs[p]/predecessor.ocrs
 
 	def predict(self, starter, terminator, session, k=4):
@@ -76,16 +79,20 @@ class ApeicPredictor(Predictor):
 		for pkg_name in self.app_instances:
 			ranking[pkg_name] = result[pkg_name] if pkg_name in result else 0
 		int_context = map(lambda x: x['application'], session[:-1])
+		# if len(int_context) > 1:
+		# 	ranking = defaultdict(int)
+
 		# TODO: set(int_context)?
-		for a in set(int_context):
+		# for a in set(int_context):
+		for a in int_context:
 			for pkg_name in self.app_instances:
 				ranking[pkg_name] += self.app_instances[pkg_name].pred_influence[a]
 
 		candidates = sorted(ranking, key=ranking.get, reverse=True)
 		if len(int_context) == 0:
 			if terminator not in candidates[:k] and terminator != '':
-				candidates.insert(0, terminator)
-				# pass
+				# candidates.insert(0, terminator)
+				pass
 			# if starter not in candidates[:k+1] and starter != '':
 			# 	candidates.insert(0, starter)
 		else:
@@ -123,7 +130,7 @@ def split(sessions, ratio=0.8):
 	start_date = sessions[0][0]['datetime']
 	midnight = datetime.time(0)
 	start_date = datetime.datetime.combine(start_date.date(), midnight)
-	end_date = start_date + datetime.timedelta(days=14)
+	end_date = start_date + datetime.timedelta(days=21)
 
 	split_index = int(len(sessions)*ratio)
 	# return sessions[:split_index], sessions[split_index:]
@@ -159,7 +166,7 @@ def main():
 	total_hits = 0.0
 	total_misses = 0.0
 	accuracies = []
-	# users = ['7fab9970aff53ef4']
+	# users = ['5b1afd96d6d7f7f']
 	for user in users:
 		if user == '11d1ef9f845ec10e':
 			continue
@@ -167,7 +174,6 @@ def main():
 
 		sessions = db_helper.get_sessions(user)
 		training_sessions, testing_sessions = split(sessions, 0.8)
-		# training_sessions = map(lambda x: x[1:], training_sessions)
 		last = sessions[0][-1]['application']
 		test = [sessions[0]]
 		for s in sessions[1:]:
@@ -179,11 +185,13 @@ def main():
 			last = s[-1]['application']
 		training_sessions, testing_sessions = split(test, 0.8)
 
+		training_sessions, testing_sessions = split(sessions, 0.8)
+
 		seen_apps = []
 		for s in training_sessions:
 			seen_apps.extend(map(lambda x: x['application'], s))
 		print len(set(seen_apps)), len(sessions)
-		# training_sessions = map(lambda x: [x[0]], training_sessions)
+
 		predictor = ApeicPredictor()
 		predictor.train(training_sessions)
 
@@ -195,9 +203,16 @@ def main():
 		starter = ''
 		terminator = ''
 		for session in testing_sessions:
+			# print '==='
 			# print '\n'.join(map(lambda x: x['application'], session))
 			for i in xrange(len(session)):
-				candidates = predictor.predict(starter, terminator, session[:i+1], 8)
+				
+				print session[0]['application']
+
+				if i == 0 and session[0]['application'] == terminator:
+					continue
+
+				candidates = predictor.predict(starter, terminator, session[:i+1], 4)
 				# assert len(candidates) == 4
 
 				# if session[i]['application'] not in candidates:
@@ -210,10 +225,16 @@ def main():
 					hits += 1.0
 				else:
 					total_misses += 1.0
+
 					misses += 1.0
 					if i == 0:
 						initial_misses += 1.0
-					if session[i]['application'] not in seen_apps:
+						print '\t', session[i]['application'], candidates
+						print
+					if session[i]['application'] not in seen_apps and i > 0:
+						# print i
+						# print '\t', session[i]['application'], candidates
+						# print
 						unseen_misses += 1.0
 			starter = session[0]['application']
 			terminator = session[-1]['application']
