@@ -29,7 +29,7 @@ class FeatureExtractor():
             instance['activity'] = a
             # instance['stay_point'] = s
             # if l:
-            #     instance['last_app'] = last_app
+            instance['last_app'] = last_app
             instances.append(instance)
             # last_app = app
         X = self.vectorizer.fit_transform(instances).toarray()
@@ -45,7 +45,7 @@ class FeatureExtractor():
         instance['activity'] = a
         # instance['stay_point'] = s
         # if l:
-        #     instance['last_app'] = last_app
+        instance['last_app'] = last_app
         x = self.vectorizer.transform(instance)
         return self.vectorizer.transform(instance).toarray()[0]
 
@@ -145,8 +145,9 @@ class ApeicPredictor():
         
 
         if len(int_context) > 0:
-            if int_context[-1] in candidates:
-                candidates.remove(int_context[-1])
+            pass
+            # if int_context[-1] in candidates:
+                # candidates.remove(int_context[-1])
         return candidates[:k]
 
 def split(data, ratio=0.8):

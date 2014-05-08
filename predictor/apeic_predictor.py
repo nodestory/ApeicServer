@@ -4,8 +4,11 @@ import operator
 from collections import Counter, OrderedDict, defaultdict
 from itertools import chain
 from termcolor import colored
-from preprocessor import Preprocessor
-from predictor import Predictor
+
+# TODO
+import sys
+sys.path.append('/home/linzy/Projects/ApeicServer/apeic')
+from apeic_db_manager import ApeicDBHelper
 from nb_predictor import *
 
 class AppInstance():
@@ -15,29 +18,35 @@ class AppInstance():
 		self.pred_co_ocrs = defaultdict(int)
 		self.pred_influence = defaultdict(int)
 
-class ApeicPredictor(Predictor):
+		self.crf = 0
+
+class ApeicPredictor():
 
 	def __init__(self):
 		self.feature_extractor = FeatureExtractor()
 		self.app_instances = {}
 
 	def train(self, sessions):
-		# TODO: refactor by using nb_predictor
-		temp = map(lambda x: x[:1], sessions)
-		logs = list(chain(*temp))
-		# logs = list(chain(*sessions))
-		X, y = self.feature_extractor.generate_training_instances(logs, l=False)
+		# environmental context
+		logs = list(chain(*sessions))
+		X, y = self.feature_extractor.generate_training_instances(logs)
 		nb = MultinomialNB()
 		self.nb_predictor = nb.fit(X, y)
 
+		# interactional context
 		for session in sessions:
 			self.update(session)
 
-	def update(self, session):					
+	def update(self, session):
 		launched_apps = map(lambda x: x['application'], session)
 		for name in launched_apps:
 			instance = self.app_instances.setdefault(name, AppInstance(name))
 			instance.ocrs += 1.0
+
+		for pkg_name in self.app_instances:
+			instance = self.app_instances[pkg_name]
+			instance.crf = (1 if pkg_name in set(launched_apps) else 0) + 0.5*instance.crf
+
 		if len(session) > 1:
 			# """
 			for predecessor in list(OrderedDict.fromkeys(launched_apps)):
@@ -49,11 +58,20 @@ class ApeicPredictor(Predictor):
 						successor = session[j]['application']
 						if successor not in successors:		
 							instance = self.app_instances.setdefault(successor, AppInstance(successor))
+							instance.pred_co_ocrs[predecessor] += self.app_instances.setdefault(predecessor, AppInstance(predecessor)).crf
 							instance.pred_co_ocrs[predecessor] += 1.0
 							successors.append(successor)
 					instance = self.app_instances.setdefault(predecessor, AppInstance(predecessor))
+					instance.pred_co_ocrs[predecessor] += self.app_instances.setdefault(predecessor, AppInstance(predecessor)).crf
 					instance.pred_co_ocrs[predecessor] += 1.0
 			# """
+
+			"""
+			for p in list(OrderedDict.fromkeys(launched_apps))[:-1]:
+				for s in list(OrderedDict.fromkeys(launched_apps))[1:]:
+					instance = self.app_instances.setdefault(s, AppInstance(s))
+					instance.pred_co_ocrs[p] += 1.0
+			"""
 
 			"""
 			for i in xrange(1, len(session)):
@@ -66,74 +84,44 @@ class ApeicPredictor(Predictor):
 			successor = self.app_instances[pkg_name]
 			for p in successor.pred_co_ocrs:
 				predecessor = self.app_instances[p]
-				# math.log(predecessor.ocrs)*
 				successor.pred_influence[p] = successor.pred_co_ocrs[p]/predecessor.ocrs
 
-	def predict(self, starter, terminator, session, k=4):
+	def predict(self, session, last_app, terminator, k=4):
 		env_context = session[-1]
-		instance = self.feature_extractor.transform('', env_context)
+		instance = self.feature_extractor.transform(last_app, env_context)
 		result = dict(zip(self.nb_predictor.classes_, self.nb_predictor.predict_proba(instance)[0]), \
 						key=operator.itemgetter(1), reverse=True)
 
 		ranking = defaultdict(int)
+		test = {}
 		for pkg_name in self.app_instances:
 			ranking[pkg_name] = result[pkg_name] if pkg_name in result else 0
+			test[pkg_name] = self.app_instances.setdefault(pkg_name, AppInstance(pkg_name)).crf
+
+		nb_candidates = sorted(ranking, key=ranking.get, reverse=True)
+
 		int_context = map(lambda x: x['application'], session[:-1])
-		# if len(int_context) > 1:
-		# 	ranking = defaultdict(int)
-
-		# TODO: set(int_context)?
-		# for a in set(int_context):
-		for a in int_context:
+		for app in int_context:
 			for pkg_name in self.app_instances:
-				ranking[pkg_name] += self.app_instances[pkg_name].pred_influence[a]
+				instance = self.app_instances.setdefault(pkg_name, AppInstance(pkg_name))
+				ranking[pkg_name] += self.app_instances[pkg_name].pred_influence[app]	
 
-		candidates = sorted(ranking, key=ranking.get, reverse=True)
+		apeic_candidates = sorted(ranking, key=ranking.get, reverse=True)
 		if len(int_context) == 0:
-			if terminator not in candidates[:k] and terminator != '':
-				# candidates.insert(0, terminator)
-				pass
-			# if starter not in candidates[:k+1] and starter != '':
-			# 	candidates.insert(0, starter)
+			apeic_candidates = [terminator] + filter(lambda x: x!= terminator, apeic_candidates)
 		else:
-			if int_context[-1] in candidates:
-				candidates.remove(int_context[-1])
-		return candidates[:k]
-
-		"""
-		if len(session) == 0:
-			results = sorted(ei.iteritems(), key=operator.itemgetter(1), reverse=True)
-			candidates = map(lambda x: x[0], results[2:k+2])
-			if last not in candidates:
-				candidates = map(lambda x: x[0], results[2:k+1]) + [last]
-			return candidates
-
-		launched_apps = list(OrderedDict.fromkeys(map(lambda x: x['application'], session[:-1])))
-		ranking = defaultdict(int)
-		for pkg_name in self.app_instances:
-			# ranking[pkg_name] = ei[pkg_name] if pkg_name in ei else 0
-			ranking[pkg_name] = self.app_instances[pkg_name].pred_influence[session[-1]['application']]
-			# ranking[pkg_name] = self.app_instances[pkg_name].pred_influence[session[-1]['application']] \
-			# 						+ ei[pkg_name] if pkg_name in ei.keys() else 0
-
-			# TODO: take recency into consideration
-			# if pkg_name in map(lambda x: x['application'], session[-4:-1]):
-			# 	ranking[pkg_name] += 1
-			# if pkg_name in map(lambda x: x['application'], session[:-4]):
-			# 	ranking[pkg_name] -= 1
-			# if pkg_name in launched_apps:
-				# ranking[pkg_name] += 0.3 - 0.05*(len(launched_apps) - temp.index(pkg_name))
-		"""
+			if int_context[-1] in apeic_candidates:
+				apeic_candidates.remove(int_context[-1])
+		return apeic_candidates[:k], nb_candidates[:k]
 
 def split(sessions, ratio=0.8):
 	# print (sessions[-1][-1]['datetime'] - sessions[0][0]['datetime']).days
 	start_date = sessions[0][0]['datetime']
 	midnight = datetime.time(0)
 	start_date = datetime.datetime.combine(start_date.date(), midnight)
-	end_date = start_date + datetime.timedelta(days=21)
+	end_date = start_date + datetime.timedelta(days=7)
 
 	split_index = int(len(sessions)*ratio)
-	# return sessions[:split_index], sessions[split_index:]
 	for i in xrange(len(sessions)):
 		if (sessions[i][0]['datetime'] - end_date).days > 0:
 			split_index = i
@@ -153,44 +141,35 @@ def split(sessions, ratio=0.8):
 		test_sessions = test_sessions[:tt]
 
 	# print split_index, len(sessions) - split_index
-	# return sessions[:split_index], sessions[split_index:]
+	return sessions[:split_index], sessions[split_index:]
 	return sessions[:split_index], test_sessions
 
-import sys
-sys.path.append('/home/linzy/Projects/ApeicServer/apeic')
-from apeic_db_manager import ApeicDBHelper
-def main():
+def test(k=4, ignore_initiator=True):
 	db_helper = ApeicDBHelper()
-	users = db_helper.get_users()
+	users = filter(lambda x: x != '11d1ef9f845ec10e', db_helper.get_users())
 
 	total_hits = 0.0
 	total_misses = 0.0
-	accuracies = []
-	# users = ['5b1afd96d6d7f7f']
-	for user in users:
-		if user == '11d1ef9f845ec10e':
-			continue
-		print colored(user, attrs=['blink'])
+	m = 0.0
+	
+	nb_total_hits = 0.0
+	nb_total_misses = 0.0
+	nb_m = 0.0
+
+	mfu_total_hits = 0.0
+	mfu_total_misses = 0.0
+	mfu_m = 0.0
+	for user in users[:1]:
+		# print colored(user, attrs=['blink'])
 
 		sessions = db_helper.get_sessions(user)
 		training_sessions, testing_sessions = split(sessions, 0.8)
-		last = sessions[0][-1]['application']
-		test = [sessions[0]]
-		for s in sessions[1:]:
-			if s[0]['application'] == last:
-				if s[1:]:
-					test.append(s[1:])
-			else:
-				test.append(s)
-			last = s[-1]['application']
-		training_sessions, testing_sessions = split(test, 0.8)
 
-		training_sessions, testing_sessions = split(sessions, 0.8)
-
-		seen_apps = []
-		for s in training_sessions:
-			seen_apps.extend(map(lambda x: x['application'], s))
-		print len(set(seen_apps)), len(sessions)
+		used_apps = []
+		for session in training_sessions:
+			used_apps += map(lambda x: x['application'], session)
+			counter = Counter(used_apps)
+		mfu_candidates = map(lambda x: x[0], counter.most_common(k))
 
 		predictor = ApeicPredictor()
 		predictor.train(training_sessions)
@@ -202,57 +181,64 @@ def main():
 
 		starter = ''
 		terminator = ''
+		last_app = ''
 		for session in testing_sessions:
-			# print '==='
-			# print '\n'.join(map(lambda x: x['application'], session))
-			for i in xrange(len(session)):
-				
-				print session[0]['application']
+			# if len(session) > 1:
+				# print '==='
+				# print '\n'.join(map(lambda x: x['application'], session))
 
-				if i == 0 and session[0]['application'] == terminator:
+			for i in xrange(len(session)):
+				if ignore_initiator and i == 0:
 					continue
 
-				candidates = predictor.predict(starter, terminator, session[:i+1], 4)
-				# assert len(candidates) == 4
+				apeic_candidates, nb_candidates = predictor.predict(session[:i+1], last_app, terminator, k)
+				assert len(apeic_candidates) <= k and len(nb_candidates) <= k
 
-				# if session[i]['application'] not in candidates:
-				# 	print i, session[i]['application']
-				# 	print candidates
-				# print
-
-				if session[i]['application'] in candidates:
+				if session[i]['application'] in apeic_candidates:
 					total_hits += 1.0
 					hits += 1.0
+					m += 1.0/(apeic_candidates.index(session[i]['application']) + 1)
 				else:
 					total_misses += 1.0
-
+					# print i, session[i]['application']
+					# print '\t', apeic_candidates
 					misses += 1.0
 					if i == 0:
 						initial_misses += 1.0
-						print '\t', session[i]['application'], candidates
-						print
-					if session[i]['application'] not in seen_apps and i > 0:
-						# print i
-						# print '\t', session[i]['application'], candidates
-						# print
+					if session[i]['application'] not in counter.keys() and i > 0:
 						unseen_misses += 1.0
+
+				if session[i]['application'] in nb_candidates:
+					nb_total_hits += 1.0
+					nb_m += 1.0/(nb_candidates.index(session[i]['application']) + 1)
+				else:
+					nb_total_misses += 1.0
+
+				if session[i]['application'] in mfu_candidates:
+					mfu_total_hits += 1.0
+					mfu_m += 1.0/(mfu_candidates.index(session[i]['application']) + 1)
+				else:
+					mfu_total_misses += 1.0
+
+				last_app = session[i]['application'] 
 			starter = session[0]['application']
 			terminator = session[-1]['application']
 
 			predictor.update(session)
 
-			# logs = aggregate_sessions(training_sessions + [session])
-			# extractor = FeatureExtractor()
-			# X, y = extractor.generate_training_instances(logs)
-			# nb = MultinomialNB()
-			# nb_predictor = nb.fit(X, y)
-
 		if hits + misses == 0:
 			continue
 		acc = (hits)/(hits + misses)
-		print acc, hits, misses, initial_misses, unseen_misses
-		# break
-	print (total_hits)/(total_hits + total_misses)
+		# print acc, hits, misses, initial_misses, unseen_misses
+
+	print k
+	print colored('APEIC', 'cyan'), \
+			(total_hits)/(total_hits + total_misses), m/(total_hits + total_misses)
+	print colored('NB   ', 'cyan'), \
+			(nb_total_hits)/(nb_total_hits + nb_total_misses), nb_m/(nb_total_hits + nb_total_misses)
+	print colored('MFU  ', 'cyan'), \
+			(mfu_total_hits)/(mfu_total_hits + mfu_total_misses), mfu_m/(mfu_total_hits + mfu_total_misses)
 
 if __name__ == '__main__':
-	main()
+	for k in xrange(1, 9):
+		test(k, True)

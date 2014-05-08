@@ -112,7 +112,7 @@ class FeatureExtractor():
             else:
                 instance['c'] = 'N'
             # instance['wifi_ap_num'] = logs[i]['wifi_ap_num']
-            # instance['last_used_app'] = last_used_app
+            instance['last_used_app'] = last_used_app
             instances.append(instance)
             last_used_app = logs[i]['application']
         # print len(stay_points)
@@ -152,7 +152,7 @@ class FeatureExtractor():
         else:
             instance['stay_point'] = str(-2)
             # instance['stay_point'] = log['activity']
-        # instance['last_used_app'] = last_used_app
+        instance['last_used_app'] = last_used_app
         # instance['illumination'] = log['illumination']
         # instance['mobile_connection'] = log['mobile_connection']
         # instance['wifi_connection'] = log['wifi_connection']
@@ -189,7 +189,7 @@ def split(sessions, ratio=0.8):
     start_date = sessions[0][0]['datetime']
     midnight = datetime.time(0)
     start_date = datetime.datetime.combine(start_date.date(), midnight)
-    end_date = start_date + datetime.timedelta(days=21)
+    end_date = start_date + datetime.timedelta(days=7)
 
     split_index = int(len(sessions)*ratio)
     # return sessions[:split_index], sessions[split_index:]
