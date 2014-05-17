@@ -195,16 +195,21 @@ def main():
     db_helper = ApeicDBHelper()
 
     users = db_helper.get_users()
-    for user in users:
+    for user in users[1:]:
+        print user
         hits = 0.0
         misses = 0.0
         sessions = db_helper.get_sessions(user)
         used_apps = []
         for session in sessions:
             used_apps += map(lambda x: x['application'], session)
+        # used_apps += map(lambda x: x[0]['application'], sessions)
         counter = Counter(used_apps)
-        print len(set(used_apps))
-        print len(filter(lambda x: counter[x] > 10, counter))
+        for k in counter:
+            print k, counter[k]
+        print
+        # print len(set(used_apps))
+        # print len(filter(lambda x: counter[x] > 10, counter))
 
         # terminator = sessions[0][-1]['application']
         # for session in sessions[1:]:
@@ -214,7 +219,7 @@ def main():
         #         misses += 1.0
         #     terminator = session[0]['application']
         # print hits/(hits + misses)
-        # break
+        break
 
 if __name__ == '__main__':
     main()

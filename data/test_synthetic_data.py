@@ -90,10 +90,10 @@ def test(sessions):
 
 
 if __name__ == '__main__':
-    s = 3
+    s = 2
     k = 1
-    m = 100
-    l = 3
+    m = 80
+    l = 2
     c = 0.3
     generator = SyntheticDataGenerator(s, k, m, l, c)
     with open('data/s=%d,k=%d,m=%d,l=%d,c=%.1f.txt' % (s, k, m, l, c), 'w') as f:
@@ -101,7 +101,7 @@ if __name__ == '__main__':
             generator.set_params(n, s, k, m, l, c)
 
             result = []
-            for i in xrange(50):
+            for i in xrange(30):
                 print n, i
                 sessions = generator.generate_sessions()
                 result.append(test(sessions))

@@ -1,12 +1,12 @@
-2014-05-08 00:31:58,665 INFO  (main) [org.databene.CONFIG] Running file xml/env_context.xml
-2014-05-08 00:31:58,667 INFO  (main) [org.databene.CONFIG] Benerator 0.9.1 build 2476
-2014-05-08 00:31:58,667 INFO  (main) [org.databene.CONFIG] Java version 1.6.0_30
-2014-05-08 00:31:58,667 INFO  (main) [org.databene.CONFIG] JVM OpenJDK 64-Bit Server VM 23.25-b01 (Sun Microsystems Inc.)
-2014-05-08 00:31:58,667 INFO  (main) [org.databene.CONFIG] OS Linux 3.11.0-17-generic (amd64)
-2014-05-08 00:31:58,667 INFO  (main) [org.databene.CONFIG] Installed JSR 223 Script Engines:
-2014-05-08 00:31:58,670 INFO  (main) [org.databene.CONFIG] - Mozilla Rhino[js, rhino, JavaScript, javascript, ECMAScript, ecmascript]
-2014-05-08 00:31:58,670 INFO  (main) [org.databene.CONFIG] Configured heap size limit: 878 MB
-2014-05-08 00:31:59,043 INFO  (main) [org.databene.task.TaskExecutor] Running task StateTrackingTaskProxy[GenerateAndConsumeTask(null)] 800 times with page size 1 in a single thread
-2014-05-08 00:31:59,183 INFO  (main) [org.databene.benerator.engine.statement.TimedGeneratorStatement] Created 800 data sets from 'anonymous' setup in 262 ms (3053/s)
-2014-05-08 00:31:59,184 INFO  (main) [org.databene.benerator.engine.DescriptorRunner] Created a total of 800 entities in 263 ms (~10,000,000 p.h.)
-2014-05-08 00:31:59,185 INFO  (main) [org.databene.CONFIG] Max. committed heap size: 59 MB
+2014-05-13 20:28:45,102 INFO  (main) [org.databene.CONFIG] Running file xml/env_context.xml
+2014-05-13 20:28:45,105 INFO  (main) [org.databene.CONFIG] Benerator 0.9.1 build 2476
+2014-05-13 20:28:45,105 INFO  (main) [org.databene.CONFIG] Java version 1.6.0_30
+2014-05-13 20:28:45,105 INFO  (main) [org.databene.CONFIG] JVM OpenJDK 64-Bit Server VM 23.25-b01 (Sun Microsystems Inc.)
+2014-05-13 20:28:45,105 INFO  (main) [org.databene.CONFIG] OS Linux 3.11.0-17-generic (amd64)
+2014-05-13 20:28:45,105 INFO  (main) [org.databene.CONFIG] Installed JSR 223 Script Engines:
+2014-05-13 20:28:45,108 INFO  (main) [org.databene.CONFIG] - Mozilla Rhino[js, rhino, JavaScript, javascript, ECMAScript, ecmascript]
+2014-05-13 20:28:45,108 INFO  (main) [org.databene.CONFIG] Configured heap size limit: 878 MB
+2014-05-13 20:28:45,482 INFO  (main) [org.databene.task.TaskExecutor] Running task StateTrackingTaskProxy[GenerateAndConsumeTask(null)] 800 times with page size 1 in a single thread
+2014-05-13 20:28:45,622 INFO  (main) [org.databene.benerator.engine.statement.TimedGeneratorStatement] Created 800 data sets from 'anonymous' setup in 263 ms (3041/s)
+2014-05-13 20:28:45,624 INFO  (main) [org.databene.benerator.engine.DescriptorRunner] Created a total of 800 entities in 264 ms (~10,000,000 p.h.)
+2014-05-13 20:28:45,625 INFO  (main) [org.databene.CONFIG] Max. committed heap size: 59 MB
