@@ -189,37 +189,77 @@ class ApeicDBHelper(object):
 from pymining import itemmining
 import itertools
 import operator
+import sys
 from collections import Counter
 from collections import Counter, OrderedDict, defaultdict
 def main():
     db_helper = ApeicDBHelper()
 
+    session_len = []
+    unique_apps_num = []
     users = db_helper.get_users()
-    for user in users[1:]:
+    # for user in users:
+        # sessions = db_helper.get_sessions(user)
+        # days = [[sessions[0]]]
+        # for session in sessions[1:]:
+        #     if session[0]['datetime'].day != days[-1][-1][0]['datetime'].day:
+        #         days.append([])
+        #     days[-1].append(session)
+        
+        # for day in days:
+        #     for session in day:
+        #         print session[0]['application'],
+        #     print
+        # print 
+
+    # for user in users:
+    #     sessions = db_helper.get_sessions(user)
+    #     initiators = map(lambda x: (x[0]['datetime'], x[0]['application']), sessions)
+    #     transitions = []
+    #     for i in xrange(1, len(initiators)):
+    #         transitions.append( \
+    #             (initiators[i][1] == initiators[i-1][1], initiators[i][0] - initiators[i-1][0]))
+
+    #     result = filter(lambda x: x[0], transitions)
+    #     print map(lambda x: x[1].seconds, result)
+    #     print sum(map(lambda x: x[1].seconds, result))/len(result)/60
+
+    #     result = filter(lambda x: not x[0], transitions)
+    #     print sum(map(lambda x: x[1].seconds, result))/len(result)/60
+
+    #     print
+
+
+    for user in users:
         print user
-        hits = 0.0
-        misses = 0.0
+        count = 0.0
+        session_num = 0.0
+
         sessions = db_helper.get_sessions(user)
         used_apps = []
         for session in sessions:
-            used_apps += map(lambda x: x['application'], session)
-        # used_apps += map(lambda x: x[0]['application'], sessions)
-        counter = Counter(used_apps)
-        for k in counter:
-            print k, counter[k]
-        print
-        # print len(set(used_apps))
-        # print len(filter(lambda x: counter[x] > 10, counter))
+            session_len.append(len(session))
+            unique_apps_num.append(len(set(map(lambda x: x['application'], session))))
 
-        # terminator = sessions[0][-1]['application']
-        # for session in sessions[1:]:
-        #     if session[0]['application'] == terminator:
-        #         hits += 1.0
-        #     else:
-        #         misses += 1.0
-        #     terminator = session[0]['application']
-        # print hits/(hits + misses)
-        break
+        terminator = sessions[0][-1]['application']
+        for session in sessions[1:]:
+            initiator = session[0]['application']
+            if initiator == terminator:
+                count += 1
+            session_num += 1
+            terminator = initiator
+
+        print count/session_num
+
+    counter = Counter(session_len)
+    for k in counter:
+        print k, counter[k]
+    print
+        
+    counter = Counter(unique_apps_num)
+    for k in counter:
+        print k, counter[k]
+    print
 
 if __name__ == '__main__':
     main()

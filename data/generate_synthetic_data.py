@@ -13,6 +13,7 @@ import nonrandom
 from collections import Counter, defaultdict
 from itertools import groupby
 from operator import itemgetter
+from itertools import chain
 
 class RealDataAnalyzer():
 
@@ -22,8 +23,9 @@ class RealDataAnalyzer():
     def _format(self, log):
         day = log['datetime'].isoweekday()
         hour = log['datetime'].hour
+	act = log['activity']
         act = 'STATIC' if log['activity'] in ['STILL', 'TILTING'] else log['activity']
-        app = log['application']
+        #app = log['application']
         return day, hour, act, app
 
     def get_env_context_distrs(self, logs, export=True):
@@ -124,11 +126,11 @@ class SyntheticDataGenerator():
                 session.append(log)
             sessions.append(session)
 
-            # """
+            """
             for s in session:
                 print s
             print
-            # """
+            """
 
         return sessions
 
@@ -148,21 +150,36 @@ class SyntheticDataGenerator():
         return tuple(tokens)
 
     def _dev_int_context(self, ec):
-        choices = []
+        segment_choices = []
         for segment in self.segments:
             results = map(lambda x: reduce(operator.mul, \
                             map(lambda i: self.app_pool[x][i][ec[i]], xrange(self.feature_num)), 1), \
                             segment)
             score = reduce(operator.mul, results, 1)
-            choices.append((segment, score))
+            segment_choices.append((segment, score))
+
+        app_choices = []
+        for app in self.app_pool.keys():
+            score = reduce(operator.mul, map(lambda i: self.app_pool[app][i][ec[i]], xrange(self.feature_num)), 1)
+            app_choices.append((app, score))
 
         int_context = []
-        segment = nonrandom.choice(choices)
+        segment = nonrandom.choice(segment_choices)
+        # turning_point = random.choice(xrange(1, self.l)) if random.random() > 0.3 else -1
         for i in xrange(self.l):
-            s = filter(lambda x: random.random() > self.c, segment)
+            # if i == turning_point:
+            if random.random() > 0.9:
+                segment = nonrandom.choice(filter(lambda x: x!= segment, segment_choices))
+
+            s = list(segment)
+            for j in xrange(self.s):
+                if random.random() < self.c:
+                    s[j] = nonrandom.choice(app_choices) if random.random() > 0.7 else None
+            s = filter(lambda x: x, s)
+            if not s:
+                s = list(segment)  
             int_context.extend(s)
-        if not int_context:
-            int_context = segment
+
         return int_context
 
     def _gen_segments(self):
@@ -172,10 +189,18 @@ class SyntheticDataGenerator():
         for i in xrange(self.m):
             prev_segment = segments[-1]
             segment = [prev_segment[i] for i in \
-                    sorted(random.sample(xrange(len(prev_segment)), self.k))]
+                    sorted(random.sample(xrange(self.s), self.k))]
             segment += random.sample(filter(lambda x: x not in segment, self.app_pool.keys()), self.s - self.k)
             random.shuffle(segment)
             segments.append(segment)
+
+        # examine the characteristic of segments
+        """
+        counter = Counter(list(chain(*segments)))
+        for app, counts in counter.most_common(self.n):
+            print app, counts
+        """
+
         return segments
 
     ####################
@@ -374,17 +399,16 @@ class SyntheticDataGenerator():
         return segments
 
 
-
 def main():
     # TODO: ignore some user's data?
-    # db = ApeicDBHelper()
-    # logs = []
-    # for user in db.get_users():
-    #     logs.extend(db.get_logs(user))
+    db = ApeicDBHelper()
+    logs = []
+    for user in db.get_users():
+        logs.extend(db.get_logs(user))
 
     analyzer = RealDataAnalyzer()
-    # analyzer.get_env_context_distrs(logs)
-    analyzer.get_segment_len_distrs()
+    analyzer.get_env_context_distrs(logs)
+    # analyzer.get_segment_len_distrs()
 
     # generator = SyntheticDataGenerator()
     # generator.generate_sessions()

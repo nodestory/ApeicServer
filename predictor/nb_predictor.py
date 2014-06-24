@@ -18,10 +18,27 @@ from sklearn.naive_bayes import MultinomialNB
 class NBPredictor(Predictor):
 
     def __init__(self):
-        pass
+        self.vectorizer = DictVectorizer()
 
-    def train(self, training_data):
-        pass
+    def train(self, launches):
+        nb = MultinomialNB()
+        
+        instances = []
+        for i in xrange(1, len(launches)):
+            instances['day'] = launches[i]['datetime'].isoweekday()
+            instances['hour'] = launches[i]['datetime'].hour
+            instances['activity'] = u'STATIC' \
+                if launches[i]['activity'] in [u'STILL', u'TILTING'] else launches[i]['activity']
+            instances['network'] = 'ON' \
+                if launches[i]['mobile_connection'] == '1' or launches[i]['wifi_connection'] == '1' else 'OFF'
+        X = self.vectorizer.fit_transform(instances).toarray()
+        y = map(lambda x: x['application'], launches)
+        self.predictor = nb.fit(X, y)
+
+
+    def _get_stay_points(self, launches):
+        stay_points = []
+        
 
     def predict(self, data, k=4):
         pass
@@ -165,59 +182,6 @@ class FeatureExtractor():
         x = self.vectorizer.transform(instance)
         return self.vectorizer.transform(instance).toarray()[0]
 
-# def split(sessions, ratio=0.8):
-#     split_index = int(len(sessions)*ratio)
-#     return sessions[:split_index], sessions[split_index:]
-
-import datetime
-def split(sessions, ratio=0.8):
-    # start_date = sessions[0][0]['datetime']
-    # midnight = datetime.time(0)
-    # start_date = datetime.datetime.combine(start_date.date(), midnight)
-    # end_date = start_date + datetime.timedelta(days=21)
-
-    # split_index = int(len(sessions)*ratio)
-    # for i in xrange(len(sessions)):
-    #     if (sessions[i][0]['datetime'] - end_date).days > 0:
-    #         split_index = i
-    #         break
-    
-    # print split_index, len(sessions) - split_index
-    # return sessions[:split_index], sessions[split_index:]
-
-    # print (sessions[-1][-1]['datetime'] - sessions[0][0]['datetime']).days
-    start_date = sessions[0][0]['datetime']
-    midnight = datetime.time(0)
-    start_date = datetime.datetime.combine(start_date.date(), midnight)
-    end_date = start_date + datetime.timedelta(days=7)
-
-    split_index = int(len(sessions)*ratio)
-    # return sessions[:split_index], sessions[split_index:]
-    for i in xrange(len(sessions)):
-        if (sessions[i][0]['datetime'] - end_date).days > 0:
-            split_index = i
-            break
-
-    test_sessions = sessions[split_index:]
-    start_date = test_sessions[0][0]['datetime']
-    midnight = datetime.time(0)
-    start_date = datetime.datetime.combine(start_date.date(), midnight)
-    end_date = start_date + datetime.timedelta(days=7)
-    tt = -1
-    for i in xrange(len(test_sessions)):
-        if (test_sessions[i][0]['datetime'] - end_date).days > 0:
-            tt = i
-            break
-    if tt != -1:
-        test_sessions = test_sessions[:tt]
-
-    # print split_index, len(sessions) - split_index
-    return sessions[:split_index], sessions[split_index:]
-    # return sessions[:split_index], test_sessions
-
-
-def aggregate_sessions(sessions):
-    return list(itertools.chain(*sessions))
 
 def main():
     hits = 0.0
@@ -268,24 +232,7 @@ def main():
                 else:
                     misses += 1.0
                 last_used_app = log['application'] 
-
-        # order = 3
-        # tesiting_sessions = filter(lambda x: len(x) > order, tesiting_sessions)
-        # if len(tesiting_sessions) == 0:
-        #     continue
-        # for session in tesiting_sessions:
-        #     log = session[order]
-        #     if log['application'] in [ u'com.android.systemui', u'com.htc.launcher', u'android', \
-        #             u'com.tul.aviate', u'com.android.settings']:
-        #             continue
-        #     instance = extractor.transform(log)
-        #     ranking = sorted(zip(predictor.classes_, predictor.predict_proba(instance)[0]), \
-        #         key=operator.itemgetter(1), reverse=True)
-        #     candidates = map(lambda x: x[0], ranking[:4])
-        #     if log['application'] in candidates:
-        #         hits += 1.0
-        #     else:
-        #         misses += 1.0        
+  
 
         acc = hits/(hits + misses)
         accuracies.append(acc)

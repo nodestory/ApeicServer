@@ -59,6 +59,50 @@ class App():
 
         self.crf = 0
 
+class LUPredictor():
+
+    def __init__(self, mu):
+        self.mu = mu
+        self.vectorizer = DictVectorizer()
+
+    def train(self, training_data):
+        nb = MultinomialNB()
+
+        instances = []
+        for i in xrange(1, len(training_data)):
+            instance = {}
+            instance['lu_1'] = training_data[i-1][-1]
+            instances.append(instance)
+        X = self.vectorizer.fit_transform(instances).toarray()
+        y = map(lambda x: x[-1], training_data[1:])
+        self.lu_predictor = nb.fit(X, y)
+
+        instances = []
+        for i in xrange(2, len(training_data)):
+            instance = {}
+            instance['lu_2'] = training_data[i-2][-1]
+            instances.append(instance)
+        X = self.vectorizer.fit_transform(instances).toarray()
+        y = map(lambda x: x[-1], training_data[2:])
+        self.lu2_predictor = nb.fit(X, y)
+
+    def predict(self, lu2, lu1, k=4):
+        vectorizer = DictVectorizer()
+        instance = {}
+        instance['lu_1'] = lu1
+        x = self.vectorizer.transform(instance).toarray()[0]
+        lu_result = zip(self.lu_predictor.classes_, self.lu_predictor.predict_proba(x)[0])
+
+        instance = {}
+        instance['lu_2'] = lu2
+        x = self.vectorizer.transform(instance).toarray()[0]
+        lu2_result = zip(self.lu2_predictor.classes_, self.lu2_predictor.predict_proba(x)[0])
+
+        result = dict(map(lambda x, y: (x[0], self.mu*x[1]+(1 - self.mu)*y[1]), lu_result, lu2_result))
+        ranking = sorted(result.iteritems(), key=operator.itemgetter(1), reverse=True)
+        candidates = map(lambda x: x[0], ranking[:k])
+        return candidates
+
 class ApeicPredictor():
 
     def __init__(self):
@@ -106,9 +150,6 @@ class ApeicPredictor():
                             app = self.ic.setdefault(successor, App(successor))
                             app.pred_co_ocrs[predecessor] += 1.0
 
-                            # app = self.ic.setdefault(predecessor, App(predecessor))
-                            # app.pred_co_ocrs[successor] += 1.0
-
                             successors.append(successor)
                     instance = self.ic.setdefault(predecessor, App(predecessor))
                     instance.pred_co_ocrs[predecessor] += 1.0
@@ -136,18 +177,35 @@ class ApeicPredictor():
             ranking[pkg_name] = ei[pkg_name] if pkg_name in ei else 0
 
         int_context = map(lambda x: x[-1], session[:-1])
-        # if len(int_context) > 1:
-        #     ranking = defaultdict(int)
-        for a in int_context:
+        N = float(len(set(int_context)))
+        for a in set(int_context):
             for pkg_name in self.ic:
-                ranking[pkg_name] += self.ic[pkg_name].pred_influence[a]
+                ranking[pkg_name] += self.ic[pkg_name].pred_influence[a]/N
+
+        # weight = defaultdict(lambda: 1)
+        l = len(int_context)
+        for app in set(filter(lambda x: x != int_context[-1], int_context)):
+            n = int_context.count(app)
+            first_index = (x for x in [y for y in enumerate(int_context)] if x[1] == app).next()[0]
+            last_index = (x for x in reversed([y for y in enumerate(int_context)]) if x[1] == app).next()[0]
+            lamb = math.ceil((last_index - first_index + 1)/float(n))
+            x = int(l + 1 - last_index)
+            prob = (lamb**x)*math.exp(-lamb)/math.factorial(x)
+            ranking[app] += prob
+        #     weight[app] = prob
+
+
+        # for a in set(int_context):
+        #     for pkg_name in self.ic:
+        #         ranking[pkg_name] += weight[a]*self.ic[pkg_name].pred_influence[a]/N
+
         candidates = sorted(ranking, key=ranking.get, reverse=True)
         
 
         if len(int_context) > 0:
             pass
             # if int_context[-1] in candidates:
-                # candidates.remove(int_context[-1])
+            #     candidates.remove(int_context[-1])
         return candidates[:k]
 
 def split(data, ratio=0.8):

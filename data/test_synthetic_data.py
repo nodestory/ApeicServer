@@ -69,6 +69,35 @@ def test(sessions):
     nb_acc = hits/(hits + misses)
     print nb_acc, hits, misses
 
+    # lu
+    hits = 0.0
+    misses = 0.0
+    predictor = LUPredictor(0.25)
+    predictor.train(training_logs)
+
+    for i in xrange(2, len(testing_logs)):
+        candidates = predictor.predict(testing_logs[i-2][-1], testing_logs[i-1][-1])
+        if testing_logs[i][-1] in candidates:
+            hits += 1.0
+        else:
+            misses += 1.0
+    lu_acc = hits/(hits + misses)
+    print lu_acc, hits, misses
+
+    # mru
+    hits = 0.0
+    misses = 0.0
+    logs = training_logs + testing_logs
+    candidates = map(lambda x: x[-1], logs[:4])
+    for log in logs[4:]:
+        if log[-1] in candidates:
+            hits += 1.0
+        else:
+            misses += 1.0
+        candidates = candidates[1:] + [log[-1]]
+    mru_acc = hits/(hits + misses)
+    print mru_acc, hits, misses    
+
     # mfu
     used_apps = []
     for session in training_sessions:
@@ -86,18 +115,19 @@ def test(sessions):
     mfu_acc = hits/(hits + misses)
     print mfu_acc, hits, misses
 
-    return apeic_acc, nb_acc, mfu_acc
+    return apeic_acc, nb_acc, lu_acc, mru_acc, mfu_acc
 
 
-if __name__ == '__main__':
-    s = 2
+def run():
+    s = 4
     k = 1
-    m = 80
-    l = 2
-    c = 0.3
+    m = 100
+    l = 3
+    c = 0.2
     generator = SyntheticDataGenerator(s, k, m, l, c)
-    with open('data/s=%d,k=%d,m=%d,l=%d,c=%.1f.txt' % (s, k, m, l, c), 'w') as f:
-        for n in xrange(10, 51, 5):
+    with open('data/s=%d,k=%d,m=%d,l=%d,c=%2f.txt' % (s, k, m, l, c), 'w') as f:
+        # for n in xrange(10, 61, 5):
+        for n in [50]:
             generator.set_params(n, s, k, m, l, c)
 
             result = []
@@ -107,6 +137,23 @@ if __name__ == '__main__':
                 result.append(test(sessions))
             apeic_acc = sum(map(lambda x: x[0], result))/len(result)
             nb_acc = sum(map(lambda x: x[1], result))/len(result)
-            mfu_acc = sum(map(lambda x: x[2], result))/len(result)
-            print n, apeic_acc, nb_acc, mfu_acc
-            f.write('%d\t%f\t%f\t%f\n' % (n, apeic_acc, nb_acc, mfu_acc))
+            lu_acc = sum(map(lambda x: x[2], result))/len(result)
+            mru_acc = sum(map(lambda x: x[3], result))/len(result)
+            mfu_acc = sum(map(lambda x: x[4], result))/len(result)
+            print n, apeic_acc, nb_acc, lu_acc, mru_acc, mfu_acc
+            f.write('%d\t%f\t%f\t%f\t%f\t%f\n' % (n, apeic_acc, nb_acc, lu_acc, mru_acc, mfu_acc))
+
+def temp():
+    s = 3
+    k = 1
+    m = 300
+    l = 3
+    c = 0.3
+    n = 50
+    generator = SyntheticDataGenerator(s, k, m, l, c)
+    generator.set_params(n, s, k, m, l, c)
+    sessions = generator.generate_sessions()
+    print test(sessions)
+
+if __name__ == '__main__':
+    run()

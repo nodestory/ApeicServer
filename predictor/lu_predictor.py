@@ -1,79 +1,72 @@
 import operator
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.naive_bayes import MultinomialNB
-from apeic.apeic_db_manager import ApeicDBHelper
-from predictor import Predictor
+from predictor.predictor import Predictor, split
 
 class LUPredictor(Predictor):
 
     def __init__(self):
         self.vectorizer = DictVectorizer()
-        pass
 
-    def train(self, training_data):
+    def train(self, data):
         nb = MultinomialNB()
 
-        instances = []
-        for i in xrange(1, len(training_data)):
-            instance = {}
-            instance['lu_1'] = training_data[i-1]['application']
-            instances.append(instance)
+        launches = map(lambda x: x['application'], data)
+        instances = map(lambda i: {'lu1': launches[i-1]}, xrange(1, len(launches)))
         X = self.vectorizer.fit_transform(instances).toarray()
-        y = map(lambda x: x['application'], training_data[1:])
-        self.lu_predictor = nb.fit(X, y)
+        y = launches[1:]
+        self.lu1_predictor = nb.fit(X, y)
 
-        instances = []
-        for i in xrange(2, len(training_data)):
-            instance = {}
-            instance['lu_2'] = training_data[i-2]['application']
-            instances.append(instance)
+        instances = map(lambda i: {'lu2': launches[i-2]}, xrange(2, len(launches)))
         X = self.vectorizer.fit_transform(instances).toarray()
-        y = map(lambda x: x['application'], training_data[2:])
+        y = launches[2:]
         self.lu2_predictor = nb.fit(X, y)
 
+        # tune mu
+        max_hr = 0
+        best_mu = 0
+        for mu in map(lambda x: x/10.0, xrange(11)):
+            self.mu = mu
+            predictions = map(lambda i: self.predict({'lu1': launches[i-1], 'lu2': launches[i-2]}), \
+                xrange(2, len(launches)))
+            hr, mrr = self.test(launches[2:], predictions)
+            if hr > max_hr:
+                max_hr = hr
+                best_mu = mu
+        self.mu = best_mu
 
-    def predict(self, lu2, lu1, k=4):
+    def predict(self, data, k=4):
         vectorizer = DictVectorizer()
-        instance = {}
-        instance['lu_1'] = lu1
-        x = self.vectorizer.transform(instance).toarray()[0]
-        lu_result = zip(self.lu_predictor.classes_, self.lu_predictor.predict_proba(x)[0])
 
-        instance = {}
-        instance['lu_2'] = lu2
-        x = self.vectorizer.transform(instance).toarray()[0]
+        x = self.vectorizer.transform({'lu1': data['lu1']}).toarray()[0]
+        lu1_result = zip(self.lu1_predictor.classes_, self.lu1_predictor.predict_proba(x)[0])
+        x = self.vectorizer.transform({'lu2': data['lu2']}).toarray()[0]
         lu2_result = zip(self.lu2_predictor.classes_, self.lu2_predictor.predict_proba(x)[0])
 
-        result = dict(map(lambda x, y: (x[0], x[1]+r*y[1]), lu_result, lu2_result))
-        ranking = sorted(result.iteritems(), key=operator.itemgetter(1), reverse=True)
-        candidates = map(lambda x: x[0], ranking[:k])
+        result = dict(map(lambda x, y: (x[0], self.mu*x[1] + (1 - self.mu)*y[1]), lu1_result, lu2_result))
+        ranking = sorted(result, key=result.get, reverse=True)
+        candidates = ranking[:k]
+        assert len(candidates) <= k
         return candidates
 
-def split(data, ratio=0.8):
-    split_index = int(len(data)*ratio)
-    return data[:split_index], data[split_index:]
-
-r = 0.5
+from apeic.apeic_db_manager import ApeicDBHelper
 def main():
+    predictor = LUPredictor()
+
     db_helper = ApeicDBHelper()
-    
-    hits = 0.0
-    misses = 0.0
     users = db_helper.get_users()
+
     for user in users:
-        logs = db_helper.get_logs(user)
-        training_data, testing_data = split(logs)
-        predictor = LUPredictor()
-        predictor.train(training_data)
-
-        for i in xrange(2, len(testing_data)):
-            candidates = predictor.predict(testing_data[i-2]['application'], testing_data[i-1]['application'])
-            if testing_data[i]['application'] in candidates:
-                hits += 1.0
-            else:
-                misses += 1.0
-
-    print hits/(hits + misses)
+        sessions = db_helper.get_sessions(user)
+        training_logs, testing_logs = split(sessions, aggregated=True)
+        
+        predictor.train(training_logs)
+        launches = map(lambda x: x['application'], testing_logs[2:])
+        predictions = map(lambda i: predictor.predict(\
+            {'lu1': testing_logs[i-1]['application'], 'lu2': testing_logs[i-2]['application']}), \
+            xrange(2, len(testing_logs)))
+        hr, mrr = predictor.test(launches, predictions)
+        print hr, mrr
 
 if __name__ == '__main__':
     main()

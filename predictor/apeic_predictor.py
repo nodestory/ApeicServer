@@ -11,6 +11,7 @@ import sys
 sys.path.append('/home/linzy/Projects/ApeicServer/apeic')
 from apeic_db_manager import ApeicDBHelper
 from nb_predictor import *
+from lu_predictor import *
 
 class AppInstance():
 	def __init__(self, pkg_name):
@@ -133,27 +134,27 @@ class ApeicPredictor():
 				# ranking[pkg_name] = self.app_instances[pkg_name].pred_influence[app]
 			
 		# print '\n'.join(int_context)
+		weight = defaultdict(lambda: 1)
 		N = float(len(int_context))
-		for app in set(int_context[:-1]):
+		for app in set(filter(lambda x: x != int_context[-1], int_context)):
 			n = int_context.count(app)
+			r_index = (x for x in [y for y in enumerate(int_context)] if x[1] == app).next()[0]
 			l_index = (x for x in reversed([y for y in enumerate(int_context)]) if x[1] == app).next()[0]
-			# lamb = N/n + 0.5
-			lamb = (N - l_index)/n
+			lamb = math.ceil((l_index - r_index + 1)/float(n))
+			# lamb = (N)/n + 0.5
+			# lamb = (N - l_index)/n
 			x = int(N - l_index)
 			prob = (lamb**x)*math.exp(-lamb)/math.factorial(x)
 			# print lamb, x, app, prob
 			ranking[app] += prob
-			# ranking[app] += 1
+			weight[app] = prob
+			# ranking[app] += 0.5
 		# print
 
-
-		# for pkg_name in self.app_instances:
-		# 	instance = self.app_instances[pkg_name]
-		# 	instance.crf = (1 if pkg_name in set(launched_apps) else 0.3) + 0.8*instance.crf
-
-		# for pkg_name in self.app_instances:
-		# 	instance = self.app_instances.setdefault(pkg_name, AppInstance(pkg_name))
-		# 	ranking[pkg_name] *= instance.crf
+		# for app in set(int_context):
+		# 	for pkg_name in self.app_instances:
+		# 		instance = self.app_instances.setdefault(pkg_name, AppInstance(pkg_name))
+		# 		ranking[pkg_name] += weight[app]*self.app_instances[pkg_name].pred_influence[app]/len(int_context)
 
 
 		apeic_candidates = sorted(ranking, key=ranking.get, reverse=True)
@@ -174,7 +175,7 @@ def split(sessions, passed_days=7, ratio=0.8):
 	start_date = sessions[0][0]['datetime']
 	midnight = datetime.time(0)
 	start_date = datetime.datetime.combine(start_date.date(), midnight)
-	end_date = start_date + datetime.timedelta(days=7)
+	end_date = start_date + datetime.timedelta(days=14)
 
 	split_index = int(len(sessions)*ratio)
 	for i in xrange(len(sessions)):
@@ -212,6 +213,14 @@ def test(k=4, ignore_initiator=True):
 	nb_total_misses = 0.0
 	nb_m = 0.0
 
+	lu_total_hits = 0.0
+	lu_total_misses = 0.0
+	lu_m = 0.0
+
+	mru_total_hits = 0.0
+	mru_total_misses = 0.0
+	mru_m = 0.0
+
 	mfu_total_hits = 0.0
 	mfu_total_misses = 0.0
 	mfu_m = 0.0
@@ -221,6 +230,12 @@ def test(k=4, ignore_initiator=True):
 		sessions = db_helper.get_sessions(user)
 		training_sessions, testing_sessions = split(sessions, 0.8)
 
+		past_launches = map(lambda x: x['application'], chain(*training_sessions))
+		mru_candidates = past_launches[-k:]
+		l1 = past_launches[-1]
+		l2 = past_launches[-2]
+
+
 		used_apps = []
 		for session in training_sessions:
 			used_apps += map(lambda x: x['application'], session)
@@ -229,6 +244,9 @@ def test(k=4, ignore_initiator=True):
 
 		predictor = ApeicPredictor()
 		predictor.train(training_sessions)
+
+		lu_predictor = LUPredictor(0.25)
+		lu_predictor.train(list(chain(*training_sessions)))
 
 		hits = 0.0
 		misses = 0.0
@@ -268,6 +286,8 @@ def test(k=4, ignore_initiator=True):
 				apeic_candidates, nb_candidates = predictor.predict(session[:i+1], last_app, terminator, k)
 				assert len(apeic_candidates) <= k and len(nb_candidates) <= k
 
+				lu_candidates = lu_predictor.predict(l2, l1, k)
+
 				if session[i]['application'] in apeic_candidates:
 					total_hits += 1.0
 					hits += 1.0
@@ -289,34 +309,54 @@ def test(k=4, ignore_initiator=True):
 				else:
 					nb_total_misses += 1.0
 
+				if session[i]['application'] in lu_candidates:
+					lu_total_hits += 1.0
+					lu_m += 1.0/(lu_candidates.index(session[i]['application']) + 1)
+				else:
+					lu_total_misses += 1.0
+
+				if session[i]['application'] in mru_candidates:
+					mru_total_hits += 1.0
+					mru_m += 1.0/(mru_candidates.index(session[i]['application']) + 1)
+				else:
+					mru_total_misses += 1.0
+
 				if session[i]['application'] in mfu_candidates:
 					mfu_total_hits += 1.0
 					mfu_m += 1.0/(mfu_candidates.index(session[i]['application']) + 1)
 				else:
 					mfu_total_misses += 1.0
 
+				mru_candidates = mru_candidates[1:] + [session[i]['application']]
+				l2 = l1
+				l1 = session[i]['application'] 
 				last_app = session[i]['application'] 
 			starter = session[0]['application']
 			terminator = session[-1]['application']
 			last_date = session[0]['datetime'].day
 
-			predictor.update(session)
+			# predictor.update(session)
 
 		if hits + misses == 0:
 			continue
 		acc = (hits)/(hits + misses)
 		# print unseen_misses
 		print acc, hits, misses, initial_misses, unseen_misses
+		break
 
 	print k
 	print colored('APEIC', 'cyan'), \
 			(total_hits)/(total_hits + total_misses), m/(total_hits + total_misses), initial_misses, total_hits, total_misses
 	print colored('NB   ', 'cyan'), \
 			(nb_total_hits)/(nb_total_hits + nb_total_misses), nb_m/(nb_total_hits + nb_total_misses)
+	print colored('LU  ', 'cyan'), \
+			(lu_total_hits)/(lu_total_hits + lu_total_misses), lu_m/(lu_total_hits + lu_total_misses)
+	print colored('MRU  ', 'cyan'), \
+			(mru_total_hits)/(mru_total_hits + mru_total_misses), mru_m/(mru_total_hits + mru_total_misses)
 	print colored('MFU  ', 'cyan'), \
 			(mfu_total_hits)/(mfu_total_hits + mfu_total_misses), mfu_m/(mfu_total_hits + mfu_total_misses)
 
 if __name__ == '__main__':
-	# for k in xrange(1, 9):
-	# 	test(k, True)
-	test(4, True)
+	for k in xrange(1, 9):
+		test(k, False)
+	# test(4, False)

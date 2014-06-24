@@ -63,6 +63,17 @@ def compute_repeatability(user):
 
 	return sorted(results.iteritems(), key=operator.itemgetter(1), reverse=True)
 
+from itertools import chain
+def get_session_len_distr(verbose=True):
+	db_helper = ApeicDBHelper()
+	sessions = chain(*map(lambda x: db_helper.get_sessions(x), db_helper.get_users()))
+	session_lengths = map(lambda x: len(x), sessions)
+	app_numbers = map(lambda x: len(set(map(lambda y: y['application']))), x), sessions))
+	counter = Counter(session_lengths)
+	if verbose:
+		for length in counter:
+			print length, counter[length]
+
 def main():
 	db_helper = ApeicDBHelper()
 	users = db_helper.get_users()
@@ -70,8 +81,7 @@ def main():
 
 	for user in users:
 		print colored(user, attrs=['blink'])
-		print_app_events(user)
-		# print_app_repeatability(user)
+		print_app_repeatability(user)
 		print
 		# break
 

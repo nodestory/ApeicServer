@@ -20,3 +20,5 @@ sys.path.insert(0,parentdir)
 
 import apeic
 from apeic.apeic_db_manager import ApeicDBHelper
+
+from predictor import Predictor
